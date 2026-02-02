@@ -1,17 +1,32 @@
+using Microsoft.OpenApi;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// Swagger/OpenAPI (UI at /swagger)
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "MockEndpoints",
+        Version = "v1"
+    });
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MockEndpoints v1");
+        c.RoutePrefix = "swagger"; // default, explicit for clarity
+    });
 }
 
+// If you only run HTTP locally and get the HTTPS warning, either remove this
+// or configure https in launchSettings.json.
 app.UseHttpsRedirection();
 
 var FirstNames = new[]
@@ -28,24 +43,20 @@ app.MapGet("/get-random-guest-registration", () =>
 {
     var rnd = Random.Shared;
 
-    // 1) Random first + last name
     var firstName = FirstNames[rnd.Next(FirstNames.Length)];
     var familyName = LastNames[rnd.Next(LastNames.Length)];
 
-    // 2) Email: FirstName.LastName@dtu.dk (lowercase)
     var email = $"{firstName}.{familyName}@dtu.dk".ToLowerInvariant();
 
-    // 3) Random MeetingDateTime from today +- 15 days, in half-hour intervals
     var now = DateTimeOffset.Now;
     var dayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
 
-    var dayDelta = rnd.Next(-15, 16);        // -15..+15
-    var halfHourSlot = rnd.Next(0, 48);      // 0..47 => 00:00, 00:30, ..., 23:30
+    var dayDelta = rnd.Next(-15, 16);   // -15..+15
+    var halfHourSlot = rnd.Next(18, 34); // 9...17
     var meetingDateTime = dayStart
         .AddDays(dayDelta)
         .AddMinutes(halfHourSlot * 30);
 
-    // 4) Duration: 1-3 or null
     int? duration = rnd.Next(0, 4) switch
     {
         0 => null,
@@ -59,15 +70,27 @@ app.MapGet("/get-random-guest-registration", () =>
         FirstName: firstName,
         FamilyName: familyName,
         Email: email,
+        RegisteredBy: "dte",
         MeetingDateTime: meetingDateTime,
         Duration: duration
     ));
-});
+})
+.WithName("GetRandomGuestRegistration")
+.WithTags("Mock Data")
+.Produces<GuestRegistration>(StatusCodes.Status200OK)
+.WithOpenApi();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
+   .WithTags("Health")
+   .WithOpenApi();
+
+app.Run();
 
 public record GuestRegistration(
     string FirstName,
     string FamilyName,
     string Email,
+    string RegisteredBy,
     DateTimeOffset MeetingDateTime,
     int? Duration
 );
