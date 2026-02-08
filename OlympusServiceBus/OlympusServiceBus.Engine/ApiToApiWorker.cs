@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using OlympusServiceBus.Engine.Models.Configuration;
+using System.Text.Json.Serialization;
+
 
 namespace OlympusServiceBus.Engine;
 
@@ -13,7 +15,9 @@ public class ApiToApiWorker(ILogger<ApiToApiWorker> logger, IHttpClientFactory h
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNameCaseInsensitive = true,
+        Converters = { new JsonStringEnumConverter() }
     };
+
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -140,16 +144,100 @@ public class ApiToApiWorker(ILogger<ApiToApiWorker> logger, IHttpClientFactory h
 
         foreach (var m in contract.Mappings)
         {
-            if (string.IsNullOrWhiteSpace(m.SourceFieldName) || string.IsNullOrWhiteSpace(m.SinkFieldName))
-                continue;
-
-            if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var value) || value is null)
+            switch (m.TransformationType)
             {
-                logger.LogDebug("[{Contract}] Source field missing: {Field}", contractName, m.SourceFieldName);
-                continue;
-            }
+                case TransformationType.Direct:
+                    if (string.IsNullOrWhiteSpace(m.SourceFieldName) || string.IsNullOrWhiteSpace(m.SinkFieldName))
+                    {
+                        continue;
+                    }
 
-            sinkPayload[m.SinkFieldName] = value.DeepClone();
+                    if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var directValue) || directValue is null)
+                    {
+                        logger.LogDebug("[{Contract}] Source field missing: {Field}", contractName, m.SourceFieldName);
+                        continue;
+                    }
+                    sinkPayload[m.SinkFieldName] = directValue.DeepClone();
+                    break;
+                case TransformationType.Split:
+                    if (string.IsNullOrWhiteSpace(m.SourceFieldName) ||
+                        m.SinkFields.Length == 0 ||
+                        m.SinkFields.All(string.IsNullOrWhiteSpace))
+                    {
+                        continue;
+                    }
+                    
+                    if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var splitValue) || splitValue is null)
+                    {
+                        logger.LogDebug("[{Contract}] Source field missing: {Field}", contractName, m.SourceFieldName);
+                        continue;
+                    }
+
+                    var input = splitValue.ToString();
+                    if (string.IsNullOrWhiteSpace(input))
+                    {
+                        logger.LogDebug("[{Contract}] Split source field empty: {Field}", contractName, m.SourceFieldName);
+                        break;
+                    }
+
+                    var inputValues = m.Separator == " "
+                        ? input.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        : input.Split(m.Separator, StringSplitOptions.None).Select(p => p.Trim()).ToArray();
+
+                    for (var i = 0; i < m.SinkFields.Length; i++)
+                    {
+                        var sinkField = m.SinkFields[i];
+                        if (string.IsNullOrWhiteSpace(sinkField))
+                        {
+                            logger.LogDebug("[{Contract}] Split produced fewer parts than sink fields. Field {Field} gets nothing.",
+                                contractName, sinkField);
+                            break;
+                        }
+                        
+                        sinkPayload[sinkField] = inputValues[i];
+                    }
+
+                    break;
+                case TransformationType.Join:
+                    if (string.IsNullOrWhiteSpace(m.SinkFieldName) ||
+                        m.SourceFields is null ||
+                        m.SourceFields.Length == 0 ||
+                        m.SourceFields.All(string.IsNullOrWhiteSpace))
+                    {
+                        continue;
+                    }
+
+                    var parts = new List<string>();
+
+                    foreach (var sourceField in m.SourceFields)
+                    {
+                        if (string.IsNullOrWhiteSpace(sourceField))
+                        {
+                            continue;
+                        }
+
+                        if (!TryGetValueCaseInsensitive(sourceObj, sourceField, out var node) || node is null)
+                        {
+                            logger.LogDebug("[{Contract}] Join source field missing: {Field}", contractName, sourceField);
+                            continue;
+                        }
+
+                        var value = node.ToString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            parts.Add(value.Trim());
+                        }
+                    }
+
+                    if (parts.Count == 0)
+                    {
+                        logger.LogDebug("[{Contract}] Join produced no values for sink field: {Field}", contractName, m.SinkFieldName);
+                        break;
+                    }
+                    
+                    sinkPayload[m.SinkFieldName] = string.Join(m.Separator, parts);
+                    break;
+            };
         }
 
         if (sinkPayload.Count == 0)
