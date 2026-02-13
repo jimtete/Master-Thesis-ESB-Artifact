@@ -12,6 +12,7 @@ builder.Services.AddSingleton<IContractLoader, ContractLoader>();
 builder.Services.AddSingleton<ApiToApiExecutor>();
 
 builder.Services.AddHostedService<ApiToApiWorker>();
+builder.Services.AddHostedService<WebHostReloadOnStartup>();
 
 var host = builder.Build();
 
