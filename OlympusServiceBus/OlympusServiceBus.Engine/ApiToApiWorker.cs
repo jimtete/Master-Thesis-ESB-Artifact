@@ -1,6 +1,6 @@
 using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Helpers;
-using OlympusServiceBus.Engine.Models.Contracts;
+using OlympusServiceBus.Utils.Contracts;
 
 
 namespace OlympusServiceBus.Engine;

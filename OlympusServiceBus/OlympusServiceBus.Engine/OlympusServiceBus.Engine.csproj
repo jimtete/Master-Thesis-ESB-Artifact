@@ -11,4 +11,12 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.1"/>
         <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.2" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Models\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\OlympusServiceBus.Utils\OlympusServiceBus.Utils.csproj" />
+    </ItemGroup>
 </Project>

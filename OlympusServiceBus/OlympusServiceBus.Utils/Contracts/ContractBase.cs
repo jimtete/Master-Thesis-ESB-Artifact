@@ -1,4 +1,4 @@
-namespace OlympusServiceBus.Engine.Models.Contracts;
+namespace OlympusServiceBus.Utils.Contracts;
 
 public abstract class ContractBase
 {

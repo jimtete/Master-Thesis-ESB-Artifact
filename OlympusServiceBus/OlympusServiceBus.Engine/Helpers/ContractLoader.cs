@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using OlympusServiceBus.Engine.Models.Contracts;
+using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.Engine.Helpers;
 

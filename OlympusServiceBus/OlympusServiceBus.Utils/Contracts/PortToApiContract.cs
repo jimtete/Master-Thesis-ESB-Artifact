@@ -1,6 +1,6 @@
-using OlympusServiceBus.Engine.Models.Configuration;
+using OlympusServiceBus.Utils.Configuration;
 
-namespace OlympusServiceBus.Engine.Models.Contracts;
+namespace OlympusServiceBus.Utils.Contracts;
 
 public class PortToApiContract : ContractBase
 {

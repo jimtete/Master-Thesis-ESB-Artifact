@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MockEndpoints", "MockEndpoi
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OlympusServiceBus.WebHost", "OlympusServiceBus.WebHost\OlympusServiceBus.WebHost.csproj", "{CFC614F3-2759-4BED-9D58-820D2E4B5DE8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OlympusServiceBus.Utils", "OlympusServiceBus.Utils\OlympusServiceBus.Utils.csproj", "{9BF54E1F-9553-4FC4-98EF-C3EACE644423}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +32,9 @@ Global
 		{CFC614F3-2759-4BED-9D58-820D2E4B5DE8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CFC614F3-2759-4BED-9D58-820D2E4B5DE8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CFC614F3-2759-4BED-9D58-820D2E4B5DE8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9BF54E1F-9553-4FC4-98EF-C3EACE644423}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9BF54E1F-9553-4FC4-98EF-C3EACE644423}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9BF54E1F-9553-4FC4-98EF-C3EACE644423}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9BF54E1F-9553-4FC4-98EF-C3EACE644423}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

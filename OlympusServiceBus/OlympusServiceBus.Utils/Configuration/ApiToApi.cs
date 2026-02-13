@@ -1,4 +1,4 @@
-namespace OlympusServiceBus.Engine.Models.Configuration;
+namespace OlympusServiceBus.Utils.Configuration;
 
 public class ApiToApi
 {

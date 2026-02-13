@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using OlympusServiceBus.Utils.Contracts;
 using OlympusServiceBus.WebHost.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,7 +25,7 @@ else
     app.Logger.LogInformation($"Contracts RootPath: {contractsRoot}");
 }
 
-
+var routes = new Dictionary<string, PortToApiContract>(StringComparer.OrdinalIgnoreCase);
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
