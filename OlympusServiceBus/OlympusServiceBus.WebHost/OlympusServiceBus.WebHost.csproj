@@ -14,4 +14,8 @@
       <ProjectReference Include="..\OlympusServiceBus.Utils\OlympusServiceBus.Utils.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="OpenApi\" />
+    </ItemGroup>
+
 </Project>
