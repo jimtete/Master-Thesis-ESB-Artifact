@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using OlympusServiceBus.Engine.Models.Configuration;
-using OlympusServiceBus.Engine.Models.Contracts;
+using OlympusServiceBus.Utils.Configuration;
+using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.Engine.Execution;
 
