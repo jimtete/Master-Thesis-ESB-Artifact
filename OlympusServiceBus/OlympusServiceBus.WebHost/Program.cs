@@ -7,44 +7,43 @@ using OlympusServiceBus.Utils;
 using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 using OlympusServiceBus.WebHost.Models;
+using OlympusServiceBus.WebHost.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Swagger (Swashbuckle)
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(o =>
+{
+    o.SwaggerDoc("v1", new OpenApiInfo { Title = "OlympusServiceBus.WebHost", Version = "v1" });
 
-// Bind options
-builder.Services.Configure<ContractsOptions>(
-    builder.Configuration.GetSection("Contracts"));
+    // Reads PortToApiOpenApiMetadata from endpoints and injects RequestBody schema
+    o.OperationFilter<PortToApiOperationFilter>();
+});
 
-// Needed later for forwarding to Sink APIs
+// Options + HttpClient
+builder.Services.Configure<ContractsOptions>(builder.Configuration.GetSection("Contracts"));
 builder.Services.AddHttpClient();
 
 var app = builder.Build();
 
-// Swagger UI
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "OlympusServiceBus.WebHost v1");
+    });
 }
 
-// Optional (only keep if you run https)
-// app.UseHttpsRedirection();
-
-// ---- Runtime state ----
+// ---- Contracts root ----
 var contractsOptions = app.Services.GetRequiredService<IOptions<ContractsOptions>>().Value;
 var contractsRoot = contractsOptions.RootPath;
 
 if (string.IsNullOrWhiteSpace(contractsRoot))
-{
     app.Logger.LogWarning("Contracts:RootPath is not set. No contracts will be loaded.");
-}
 else
-{
     app.Logger.LogInformation("Contracts RootPath: {RootPath}", contractsRoot);
-}
 
 var jsonOpts = new JsonSerializerOptions
 {
@@ -55,7 +54,6 @@ var jsonOpts = new JsonSerializerOptions
 // ---- Load & map contracts ON STARTUP ----
 var contracts = LoadPortToApiContracts(contractsRoot);
 
-// Optional: show what was loaded
 app.MapGet("/admin/contracts", () =>
 {
     return Results.Ok(contracts.Select(c => new
@@ -66,7 +64,8 @@ app.MapGet("/admin/contracts", () =>
         path = NormalizePath(c.Listener?.Path),
         sink = c.Sink?.Endpoint
     }));
-}).WithOpenApi();
+})
+.WithName("AdminContracts");
 
 MapContracts(app, contracts);
 
@@ -85,9 +84,7 @@ List<PortToApiContract> LoadPortToApiContracts(string? rootPath)
         return list;
     }
 
-    var files = Directory.EnumerateFiles(rootPath, "*.json", SearchOption.AllDirectories);
-
-    foreach (var file in files)
+    foreach (var file in Directory.EnumerateFiles(rootPath, "*.json", SearchOption.AllDirectories))
     {
         try
         {
@@ -97,7 +94,6 @@ List<PortToApiContract> LoadPortToApiContracts(string? rootPath)
             var c = doc?.PortToApi;
             if (c is null) continue;
 
-            // Ensure ContractId exists (fallback to filename)
             c.ContractId = string.IsNullOrWhiteSpace(c.ContractId)
                 ? Path.GetFileNameWithoutExtension(file)
                 : c.ContractId;
@@ -116,16 +112,11 @@ List<PortToApiContract> LoadPortToApiContracts(string? rootPath)
 
 void MapContracts(WebApplication webApp, List<PortToApiContract> loaded)
 {
-    var usedEndpointNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     var usedRoutes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
     foreach (var c in loaded)
     {
-        if (!c.Enabled)
-        {
-            app.Logger.LogInformation("[{Contract}] Skipping (disabled).", c.ContractId);
-            continue;
-        }
+        if (!c.Enabled) continue;
 
         var method = (c.Listener?.Method ?? "POST").Trim().ToUpperInvariant();
         var path = NormalizePath(c.Listener?.Path);
@@ -137,175 +128,119 @@ void MapContracts(WebApplication webApp, List<PortToApiContract> loaded)
             continue;
         }
 
-        // Endpoint names MUST be globally unique
+        // IMPORTANT: endpoint names must be globally unique
         var endpointName = $"PortToApi_{c.ContractId}";
-        if (!usedEndpointNames.Add(endpointName))
-        {
-            endpointName = $"PortToApi_{c.ContractId}_{Guid.NewGuid():N}";
-        }
+
+        var requestSchema = BuildSchemaFromContract(c);
 
         app.Logger.LogInformation("[{Contract}] Mapping {Method} {Path} -> {Sink}",
             c.ContractId, method, path, c.Sink?.Endpoint);
 
-        webApp.MapMethods(path, new[] { method }, async (HttpContext ctx, IHttpClientFactory httpFactory) =>
-        {
-            // 1) Read inbound JSON
-            var inbound = await ctx.Request.ReadFromJsonAsync<JsonObject>(cancellationToken: ctx.RequestAborted);
-            if (inbound is null)
-                return Results.BadRequest(new { error = "Request body must be JSON object." });
-
-            // 2) Validate that inbound contains the expected fields (derived from mappings)
-            var expected = GetExpectedInboundFields(c);
-            var missing = expected.Where(f => !HasPropertyCaseInsensitive(inbound, f)).ToList();
-
-            if (missing.Count > 0)
-                return Results.BadRequest(new { error = "Missing required fields", missing });
-
-            // 3) Transform inbound -> sink payload (Type 1 + Type 2)
-            var sinkPayload = new JsonObject();
-
-            foreach (var m in c.Mappings ?? Array.Empty<ApiFieldConfig>())
+        webApp.MapMethods(path, new[] { method }, async (HttpContext ctx) =>
             {
-                switch (m.TransformationType)
+                // Read JSON body (works for any method; will be empty for GET, etc.)
+                JsonObject inboundObj;
+
+                try
                 {
-                    case TransformationType.Direct:
+                    if (ctx.Request.ContentLength is > 0)
                     {
-                        if (string.IsNullOrWhiteSpace(m.SourceFieldName) || string.IsNullOrWhiteSpace(m.SinkFieldName))
-                            continue;
-
-                        if (!TryGetValueCaseInsensitive(inbound, m.SourceFieldName, out var v) || v is null)
-                            continue;
-
-                        sinkPayload[m.SinkFieldName] = v.DeepClone();
-                        break;
+                        var node = await JsonNode.ParseAsync(ctx.Request.Body);
+                        inboundObj = node as JsonObject
+                                    ?? throw new InvalidOperationException("Request body must be a JSON object.");
                     }
-
-                    case TransformationType.Split:
+                    else
                     {
-                        if (string.IsNullOrWhiteSpace(m.SourceFieldName) ||
-                            m.SinkFields is null || m.SinkFields.Length == 0)
-                            continue;
-
-                        if (!TryGetValueCaseInsensitive(inbound, m.SourceFieldName, out var v) || v is null)
-                            continue;
-
-                        var input = v.ToString();
-                        var parts = (m.Separator == " ")
-                            ? input.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                            : input.Split(m.Separator, StringSplitOptions.None).Select(p => p.Trim()).ToArray();
-
-                        for (var i = 0; i < m.SinkFields.Length && i < parts.Length; i++)
-                        {
-                            var sinkField = m.SinkFields[i];
-                            if (!string.IsNullOrWhiteSpace(sinkField))
-                                sinkPayload[sinkField] = parts[i];
-                        }
-                        break;
-                    }
-
-                    case TransformationType.Join:
-                    {
-                        if (string.IsNullOrWhiteSpace(m.SinkFieldName) ||
-                            m.SourceFields is null || m.SourceFields.Length == 0)
-                            continue;
-
-                        var joinParts = new List<string>();
-                        foreach (var sf in m.SourceFields)
-                        {
-                            if (string.IsNullOrWhiteSpace(sf)) continue;
-                            if (!TryGetValueCaseInsensitive(inbound, sf, out var node) || node is null) continue;
-
-                            var s = node.ToString();
-                            if (!string.IsNullOrWhiteSpace(s)) joinParts.Add(s.Trim());
-                        }
-
-                        if (joinParts.Count > 0)
-                            sinkPayload[m.SinkFieldName] = string.Join(m.Separator ?? " ", joinParts);
-
-                        break;
+                        inboundObj = new JsonObject();
                     }
                 }
-            }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(new { error = "Invalid JSON body", detail = ex.Message });
+                }
 
-            // 4) Forward to sink
-            var client = httpFactory.CreateClient();
+                var errors = ValidateInbound(inboundObj, c);
+                if (errors.Count > 0)
+                    return Results.BadRequest(new { error = "Payload validation failed", errors });
 
-            var sinkMethod = new HttpMethod((c.Sink?.Method ?? "POST").Trim().ToUpperInvariant());
-            using var req = new HttpRequestMessage(sinkMethod, c.Sink!.Endpoint!)
-            {
-                Content = JsonContent.Create(sinkPayload)
-            };
-
-            using var resp = await client.SendAsync(req, ctx.RequestAborted);
-
-            // PoC: return sink status + payload we sent
-            return Results.Ok(new
-            {
-                contractId = c.ContractId,
-                forwardedTo = c.Sink.Endpoint,
-                sinkStatus = (int)resp.StatusCode,
-                payload = sinkPayload
-            });
-        })
-        .Accepts<JsonObject>("application/json")
-        .Produces(StatusCodes.Status200OK)
-        .WithOpenApi(op =>
-        {
-            op.Summary = $"PortToApi contract: {c.ContractId}";
-            op.RequestBody = BuildRequestBodyFromContract(c);
-            return op;
-        })
-        .WithName(endpointName);
+                // TODO: transform (Type1/Type2) + forward to sink
+                return Results.Ok(new { contractId = c.ContractId, accepted = true });
+            })
+            .WithName(endpointName)
+            // This is what your PortToApiOperationFilter should read to set the OpenAPI RequestBody schema:
+            .WithMetadata(new PortToApiOpenApiMetadata(c.ContractId, requestSchema));
     }
 }
 
-static string NormalizePath(string? path)
+static OpenApiSchema BuildSchemaFromContract(PortToApiContract c)
 {
-    if (string.IsNullOrWhiteSpace(path))
-        return "/";
+    var fields = c.Request?.Fields ?? Array.Empty<PortToApiRequestField>();
 
-    return path.StartsWith('/') ? path : "/" + path;
-}
-
-static OpenApiRequestBody BuildRequestBodyFromContract(PortToApiContract c)
-{
-    var fields = GetExpectedInboundFields(c) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-    // OpenApiSchema.Properties expects IDictionary<string, IOpenApiSchema>
     var props = new Dictionary<string, IOpenApiSchema>(StringComparer.OrdinalIgnoreCase);
+    var required = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
     foreach (var f in fields)
     {
-        if (string.IsNullOrWhiteSpace(f)) continue;
-        props[f] = new OpenApiSchema { Type = JsonSchemaType.String }; // PoC: assume strings
+        var name = f.FieldName;
+        if (string.IsNullOrWhiteSpace(name)) continue;
+
+        props[name] = new OpenApiSchema
+        {
+            Type = f.Type switch
+            {
+                JsonFieldType.String  => JsonSchemaType.String,
+                JsonFieldType.Integer => JsonSchemaType.Integer,
+                JsonFieldType.Number  => JsonSchemaType.Number,
+                JsonFieldType.Boolean => JsonSchemaType.Boolean,
+                JsonFieldType.Object  => JsonSchemaType.Object,
+                JsonFieldType.Array   => JsonSchemaType.Array,
+                _                     => JsonSchemaType.String
+            },
+            Format = string.IsNullOrWhiteSpace(f.Format) ? null : f.Format
+        };
+
+        if (f.Required) required.Add(name);
     }
 
-    var schema = new OpenApiSchema
+    return new OpenApiSchema
     {
         Type = JsonSchemaType.Object,
         Properties = props,
-        Required = new HashSet<string>(fields.Where(x => !string.IsNullOrWhiteSpace(x)), StringComparer.OrdinalIgnoreCase)
-    };
-
-    return new OpenApiRequestBody
-    {
-        Required = true,
-        Content = new Dictionary<string, OpenApiMediaType>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["application/json"] = new OpenApiMediaType
-            {
-                Schema = schema
-            }
-        }
+        Required = required
     };
 }
 
 
+static OpenApiSchema BuildSchemaFromFieldNames(IEnumerable<string> names)
+{
+    var props = new Dictionary<string, IOpenApiSchema>(StringComparer.OrdinalIgnoreCase);
+    var required = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-static HashSet<string> GetExpectedInboundFields(PortToApiContract c)
+    foreach (var name in names)
+    {
+        if (string.IsNullOrWhiteSpace(name)) continue;
+
+        props[name] = new OpenApiSchema { Type = JsonSchemaType.String };
+        required.Add(name);
+    }
+
+    return new OpenApiSchema
+    {
+        Type = JsonSchemaType.Object,
+        Properties = props,
+        Required = required
+    };
+}
+
+static IEnumerable<string> InferInboundFieldsFromMappings(PortToApiContract c)
 {
     var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-    foreach (var m in c.Mappings ?? Array.Empty<ApiFieldConfig>())
+    // If your PortToApiContract uses the same mapping type as ApiToApi (ApiFieldConfig),
+    // this will work. If you have a different mapping type, adjust accordingly.
+    var mappings = c.Mappings ?? Array.Empty<ApiFieldConfig>();
+
+    foreach (var m in mappings)
     {
         switch (m.TransformationType)
         {
@@ -316,10 +251,10 @@ static HashSet<string> GetExpectedInboundFields(PortToApiContract c)
                 break;
 
             case TransformationType.Join:
-                if (m.SourceFields is not null)
-                    foreach (var f in m.SourceFields)
-                        if (!string.IsNullOrWhiteSpace(f))
-                            set.Add(f);
+                if (m.SourceFields is { Length: > 0 })
+                    foreach (var sf in m.SourceFields)
+                        if (!string.IsNullOrWhiteSpace(sf))
+                            set.Add(sf);
                 break;
         }
     }
@@ -327,23 +262,42 @@ static HashSet<string> GetExpectedInboundFields(PortToApiContract c)
     return set;
 }
 
-static bool HasPropertyCaseInsensitive(JsonObject obj, string key)
+static string NormalizePath(string? path)
 {
-    return obj.Any(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase));
+    if (string.IsNullOrWhiteSpace(path)) return "/";
+    return path.StartsWith('/') ? path : "/" + path;
 }
 
-static bool TryGetValueCaseInsensitive(JsonObject obj, string key, out JsonNode? value)
+static List<string> ValidateInbound(JsonObject inbound, PortToApiContract c)
 {
-    if (obj.TryGetPropertyValue(key, out value)) return true;
+    var errors = new List<string>();
 
-    foreach (var kv in obj)
-        if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
+    // Prefer explicit Request.Fields if present
+    var fields = c.Request?.Fields ?? Array.Empty<PortToApiRequestField>();
+
+    if (fields.Length == 0)
+    {
+        // Fallback: infer required fields from mappings (PoC behavior)
+        var inferred = InferInboundFieldsFromMappings(c);
+        foreach (var name in inferred)
         {
-            value = kv.Value;
-            return true;
+            var exists = inbound.Any(kv => string.Equals(kv.Key, name, StringComparison.OrdinalIgnoreCase));
+            if (!exists)
+                errors.Add($"Missing required field: {name}");
         }
 
-    value = null;
-    return false;
-}
+        return errors;
+    }
 
+    foreach (var f in fields)
+    {
+        var name = f.FieldName;
+        if (string.IsNullOrWhiteSpace(name)) continue;
+
+        var exists = inbound.Any(kv => string.Equals(kv.Key, name, StringComparison.OrdinalIgnoreCase));
+        if (!exists && f.Required)
+            errors.Add($"Missing required field: {name}");
+    }
+
+    return errors;
+}
