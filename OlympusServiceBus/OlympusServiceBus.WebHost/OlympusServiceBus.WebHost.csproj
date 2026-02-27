@@ -11,6 +11,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\OlympusServiceBus.Engine\OlympusServiceBus.Engine.csproj" />
       <ProjectReference Include="..\OlympusServiceBus.Utils\OlympusServiceBus.Utils.csproj" />
     </ItemGroup>
 
