@@ -2,8 +2,7 @@ using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.Utils.Contracts;
 
-
-namespace OlympusServiceBus.Engine;
+namespace OlympusServiceBus.Engine.Workers;
 
 public class ApiToApiWorker(
     ILogger<ApiToApiWorker> logger,
