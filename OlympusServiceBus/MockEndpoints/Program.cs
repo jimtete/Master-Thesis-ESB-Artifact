@@ -80,47 +80,65 @@ app.MapGet("/get-random-guest-registration", () =>
 .Produces<GuestRegistration>(StatusCodes.Status200OK)
 .WithOpenApi();
 
+
 app.MapGet("/get-random-guest-registration-full-name", () =>
     {
-        var rnd = Random.Shared;
-
-        var firstName = FirstNames[rnd.Next(FirstNames.Length)];
-        var familyName = LastNames[rnd.Next(LastNames.Length)];
-        
-        var fullName = firstName + " " + familyName;
-
-        var email = $"{firstName}.{familyName}@dtu.dk".ToLowerInvariant();
-
-        var now = DateTimeOffset.Now;
-        var dayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
-
-        var dayDelta = rnd.Next(-15, 16);   // -15..+15
-        var halfHourSlot = rnd.Next(18, 34); // 9...17
-        var meetingDateTime = dayStart
-            .AddDays(dayDelta)
-            .AddMinutes(halfHourSlot * 30);
-
-        int? duration = rnd.Next(0, 4) switch
-        {
-            0 => null,
-            1 => 1,
-            2 => 2,
-            3 => 3,
-            _ => null
-        };
+        var meetingDateTime = new DateTimeOffset(2026, 3, 7, 10, 0, 0, TimeSpan.Zero);
 
         return Results.Ok(new GuestRegistrationFullName(
-            FullName: fullName,
-            Email: email,
+            FullName: "Dimitrios Tetepoulidis",
+            Email: "dimitrios.tetepoulidis@dtu.dk",
             RegisteredBy: "dte",
             MeetingDateTime: meetingDateTime,
-            Duration: duration
+            Duration: 2
         ));
     })
     .WithName("GetRandomGuestRegistrationFullName")
     .WithTags("Mock Data")
     .Produces<GuestRegistration>(StatusCodes.Status200OK)
     .WithOpenApi();
+
+// app.MapGet("/get-random-guest-registration-full-name", () =>
+//     {
+//         var rnd = Random.Shared;
+//
+//         var firstName = FirstNames[rnd.Next(FirstNames.Length)];
+//         var familyName = LastNames[rnd.Next(LastNames.Length)];
+//         
+//         var fullName = firstName + " " + familyName;
+//
+//         var email = $"{firstName}.{familyName}@dtu.dk".ToLowerInvariant();
+//
+//         var now = DateTimeOffset.Now;
+//         var dayStart = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset);
+//
+//         var dayDelta = rnd.Next(-15, 16);   // -15..+15
+//         var halfHourSlot = rnd.Next(18, 34); // 9...17
+//         var meetingDateTime = dayStart
+//             .AddDays(dayDelta)
+//             .AddMinutes(halfHourSlot * 30);
+//
+//         int? duration = rnd.Next(0, 4) switch
+//         {
+//             0 => null,
+//             1 => 1,
+//             2 => 2,
+//             3 => 3,
+//             _ => null
+//         };
+//
+//         return Results.Ok(new GuestRegistrationFullName(
+//             FullName: fullName,
+//             Email: email,
+//             RegisteredBy: "dte",
+//             MeetingDateTime: meetingDateTime,
+//             Duration: duration
+//         ));
+//     })
+//     .WithName("GetRandomGuestRegistrationFullName")
+//     .WithTags("Mock Data")
+//     .Produces<GuestRegistration>(StatusCodes.Status200OK)
+//     .WithOpenApi();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
    .WithTags("Health")

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
+using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Helpers;
@@ -32,6 +33,9 @@ builder.Services.AddSingleton<IPortToApiEngine, PortToApiEngine>();
 
 builder.Services.AddSingleton<CsvLoopProcessor>();
 builder.Services.AddSingleton<FileToApiExecutor>();
+
+builder.Services.AddSingleton<ApiToApiPayloadHashProvider>();
+builder.Services.AddSingleton<ApiToApiBusinessKeyProvider>();
 
 builder.Services.AddHostedService<ApiToApiWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();

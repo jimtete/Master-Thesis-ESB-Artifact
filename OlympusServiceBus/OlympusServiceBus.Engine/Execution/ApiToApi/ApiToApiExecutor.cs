@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 
-namespace OlympusServiceBus.Engine.Execution;
+namespace OlympusServiceBus.Engine.Execution.ApiToApi;
 
 public class ApiToApiExecutor
 {
@@ -16,15 +16,15 @@ public class ApiToApiExecutor
         _httpClientFactory = httpClientFactory;
     }
 
-    public async Task ExecuteOnce(ApiToApiContract contract, CancellationToken cancellationToken)
+    public async Task<JsonObject?> BuildPayloadAsync(ApiToApiContract contract, CancellationToken cancellationToken)
     {
         if (!contract.Enabled)
-            return;
+            return null;
 
         if (string.IsNullOrWhiteSpace(contract.Source?.Endpoint) || string.IsNullOrWhiteSpace(contract.Sink?.Endpoint))
         {
             _logger.LogWarning("[{Contract}] Missing Source.Endpoint or Sink.Endpoint.", contract.ContractId);
-            return;
+            return null;
         }
 
         contract.Source.Method ??= "GET";
@@ -34,7 +34,7 @@ public class ApiToApiExecutor
         {
             _logger.LogWarning("[{Contract}] PoC supports Source.Method=GET only. Found: {Method}",
                 contract.ContractId, contract.Source.Method);
-            return;
+            return null;
         }
 
         var client = _httpClientFactory.CreateClient();
@@ -52,13 +52,13 @@ public class ApiToApiExecutor
             if (sourceObj is null)
             {
                 _logger.LogWarning("[{Contract}] Source returned non-object JSON.", contract.ContractId);
-                return;
+                return null;
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "[{Contract}] Source call failed: {Endpoint}", contract.ContractId, contract.Source.Endpoint);
-            return;
+            return null;
         }
 
         // 2) Transform
@@ -151,13 +151,41 @@ public class ApiToApiExecutor
         if (sinkPayload.Count == 0)
         {
             _logger.LogWarning("[{Contract}] No fields mapped. Skipping sink call.", contract.ContractId);
-            return;
+            return null;
         }
 
         // 3) Push sink
+        // try
+        // {
+        //     using var req = new HttpRequestMessage(new HttpMethod(contract.Sink.Method), contract.Sink.Endpoint)
+        //     {
+        //         Content = JsonContent.Create(sinkPayload)
+        //     };
+        //
+        //     using var resp = await client.SendAsync(req, cancellationToken);
+        //     resp.EnsureSuccessStatusCode();
+        //
+        //     _logger.LogInformation("[{Contract}] Forwarded payload to sink. Payload: {Payload}",
+        //         contract.ContractId, sinkPayload.ToJsonString());
+        // }
+        // catch (Exception ex)
+        // {
+        //     _logger.LogError(ex, "[{Contract}] Sink call failed: {Endpoint}", contract.ContractId, contract.Sink.Endpoint);
+        // }
+        
+        return sinkPayload;
+    }
+
+    public async Task SendPayloadAsync(
+        ApiToApiContract contract,
+        JsonObject sinkPayload,
+        CancellationToken cancellationToken)
+    {
+        var client = _httpClientFactory.CreateClient();
+
         try
         {
-            using var req = new HttpRequestMessage(new HttpMethod(contract.Sink.Method), contract.Sink.Endpoint)
+            using var req = new HttpRequestMessage(new HttpMethod(contract.Sink.Method ?? "POST"), contract.Sink.Endpoint)
             {
                 Content = JsonContent.Create(sinkPayload)
             };
@@ -165,12 +193,19 @@ public class ApiToApiExecutor
             using var resp = await client.SendAsync(req, cancellationToken);
             resp.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("[{Contract}] Forwarded payload to sink. Payload: {Payload}",
-                contract.ContractId, sinkPayload.ToJsonString());
+            _logger.LogInformation(
+                "[{Contract}] Forwarded payload to sink. Payload: {Payload}",
+                contract.ContractId,
+                sinkPayload.ToJsonString());
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[{Contract}] Sink call failed: {Endpoint}", contract.ContractId, contract.Sink.Endpoint);
+            _logger.LogError(ex,
+                "[{Contract}] Sink call failed: {Endpoint}",
+                contract.ContractId,
+                contract.Sink.Endpoint);
+
+            throw;
         }
     }
     

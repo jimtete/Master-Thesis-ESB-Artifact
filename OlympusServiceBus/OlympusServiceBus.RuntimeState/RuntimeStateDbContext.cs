@@ -20,7 +20,7 @@ public class RuntimeStateDbContext : DbContext
         modelBuilder.Entity<ContractExecutionStateEntity>(e =>
         {
             e.ToTable("ContractExecutionState");
-            e.HasAlternateKey(x => x.ContractId);
+            e.HasKey(x => x.ContractId);
 
             e.Property(x => x.ContractId).IsRequired();
             e.Property(x => x.ContractName).IsRequired().HasMaxLength(200);
@@ -37,7 +37,7 @@ public class RuntimeStateDbContext : DbContext
             e.Property(x => x.BusinessKey).IsRequired();
             e.Property(x => x.PayloadHash).IsRequired();
 
-            e.HasIndex(x => new { x.ContractId, x.ContractName }).IsUnique();
+            e.HasIndex(x => new { x.ContractId, x.BusinessKey }).IsUnique();
         });
     }
 }

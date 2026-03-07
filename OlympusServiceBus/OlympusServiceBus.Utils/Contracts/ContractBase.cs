@@ -9,4 +9,6 @@ public abstract class ContractBase
     public bool Enabled { get; set; }
 
     public int IntervalSeconds { get; set; }
+    
+    public string[] BusinessKeyFields { get; set; } = [];
 }
