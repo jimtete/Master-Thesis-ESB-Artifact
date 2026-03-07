@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.RuntimeState.Models;
 
-namespace OlympusServiceBus.RuntimeState;
+namespace OlympusServiceBus.RuntimeState.Repositories;
 
 public class ContractMessageStateRepository : IContractMessageStateRepository
 {
@@ -12,7 +12,7 @@ public class ContractMessageStateRepository : IContractMessageStateRepository
         _dbContext = dbContext;
     }
 
-    public async Task<ContractMessageStateEntity?> GetByContractAndBusinessKeyASync(string contractId, string businessKey,
+    public async Task<ContractMessageStateEntity?> GetByContractAndBusinessKeyAsync(string contractId, string businessKey,
         CancellationToken cancellationToken = default)
     {
         return await _dbContext.ContractMessageStates

@@ -1,11 +1,10 @@
 using OlympusServiceBus.RuntimeState.Models;
 
-namespace OlympusServiceBus.RuntimeState;
+namespace OlympusServiceBus.RuntimeState.Repositories;
 
 public interface IContractMessageStateRepository
 {
-    Task<ContractMessageStateEntity?> GetByContractAndBusinessKeyASync(
-        string contractId,
+    Task<ContractMessageStateEntity?> GetByContractAndBusinessKeyAsync(string contractId,
         string businessKey,
         CancellationToken cancellationToken = default);
     

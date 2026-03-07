@@ -3,8 +3,11 @@ using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Helpers;
+using OlympusServiceBus.Engine.Services;
 using OlympusServiceBus.Engine.Workers;
 using OlympusServiceBus.RuntimeState;
+using OlympusServiceBus.RuntimeState.Repositories;
+using OlympusServiceBus.RuntimeState.Services;
 using OlympusServiceBus.Utils;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -15,7 +18,12 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
 
 // OOP pieces
-builder.Services.AddTransient<IContractMessageStateRepository, ContractMessageStateRepository>();
+builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();
+
+builder.Services.AddScoped<IContractMessageStateRepository, ContractMessageStateRepository>();
+builder.Services.AddScoped<IContractMessageStateService, ContractMessageStateService>();
+builder.Services.AddScoped<IContractExecutionStateRepository, ContractExecutionStateRepository>();
+builder.Services.AddScoped<IContractExecutionStateService, ContractExecutionStateService>();
 
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
