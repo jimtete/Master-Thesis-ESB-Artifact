@@ -28,12 +28,11 @@ public sealed class ContractLoader : IContractLoader
             return new List<ContractBase>();
         }
 
-        // IMPORTANT: recursive scan (your FileToApi contract is in a subfolder)
         var files = Directory.EnumerateFiles(dir, "*.json", SearchOption.AllDirectories).ToList();
 
         _logger.LogInformation("Scanning contracts in {Dir}. JSON files found: {Count}", dir, files.Count);
 
-        var result = new List<ContractBase>();
+        var loadedContracts = new List<LoadedContract>();
 
         foreach (var file in files)
         {
@@ -41,43 +40,39 @@ public sealed class ContractLoader : IContractLoader
             {
                 var json = File.ReadAllText(file);
 
-                // ---- Wrapper shapes (recommended) ----
+                // ---- Wrapper shapes ----
 
-                // { "ApiToApi": { ... } }
                 var a2a = JsonSerializer.Deserialize<ApiToApiDocument>(json, JsonOptions);
                 if (a2a?.ApiToApi is not null)
                 {
                     EnsureContractId(a2a.ApiToApi, file);
-                    result.Add(a2a.ApiToApi);
+                    loadedContracts.Add(new LoadedContract(a2a.ApiToApi, file));
                     continue;
                 }
 
-                // { "FileToApi": { ... } }
                 var f2a = JsonSerializer.Deserialize<FileToApiDocument>(json, JsonOptions);
                 if (f2a?.FileToApi is not null)
                 {
                     EnsureContractId(f2a.FileToApi, file);
-                    result.Add(f2a.FileToApi);
+                    loadedContracts.Add(new LoadedContract(f2a.FileToApi, file));
                     continue;
                 }
 
-                // Optional if you also load PortToApi in Engine:
-                // { "PortToApi": { ... } }
                 var p2a = JsonSerializer.Deserialize<PortToApiDocument>(json, JsonOptions);
                 if (p2a?.PortToApi is not null)
                 {
                     EnsureContractId(p2a.PortToApi, file);
-                    result.Add(p2a.PortToApi);
+                    loadedContracts.Add(new LoadedContract(p2a.PortToApi, file));
                     continue;
                 }
 
-                // ---- Direct shapes (optional fallback) ----
+                // ---- Direct shapes ----
 
                 var directA2a = JsonSerializer.Deserialize<ApiToApiContract>(json, JsonOptions);
                 if (directA2a is not null)
                 {
                     EnsureContractId(directA2a, file);
-                    result.Add(directA2a);
+                    loadedContracts.Add(new LoadedContract(directA2a, file));
                     continue;
                 }
 
@@ -85,7 +80,7 @@ public sealed class ContractLoader : IContractLoader
                 if (directF2a is not null)
                 {
                     EnsureContractId(directF2a, file);
-                    result.Add(directF2a);
+                    loadedContracts.Add(new LoadedContract(directF2a, file));
                     continue;
                 }
 
@@ -93,7 +88,7 @@ public sealed class ContractLoader : IContractLoader
                 if (directP2a is not null)
                 {
                     EnsureContractId(directP2a, file);
-                    result.Add(directP2a);
+                    loadedContracts.Add(new LoadedContract(directP2a, file));
                     continue;
                 }
 
@@ -105,14 +100,48 @@ public sealed class ContractLoader : IContractLoader
             }
         }
 
+        ValidateContractNames(loadedContracts);
+
+        var result = loadedContracts
+            .Select(x => x.Contract)
+            .ToList();
+
         _logger.LogInformation("Contracts loaded: {Count}", result.Count);
         return result;
     }
 
-    private static void EnsureContractId(ContractBase c, string filePath)
+    private static void EnsureContractId(ContractBase contract, string filePath)
     {
-        if (string.IsNullOrWhiteSpace(c.ContractId))
-            c.ContractId = Path.GetFileNameWithoutExtension(filePath);
+        if (string.IsNullOrWhiteSpace(contract.ContractId))
+            contract.ContractId = Path.GetFileNameWithoutExtension(filePath);
+    }
+
+    private static void ValidateContractNames(List<LoadedContract> contracts)
+    {
+        var missingNames = contracts
+            .Where(x => string.IsNullOrWhiteSpace(x.Contract.Name))
+            .Select(x => x.FilePath)
+            .ToList();
+
+        if (missingNames.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"All contracts must define a non-empty Name. Invalid file(s): {string.Join(", ", missingNames)}");
+        }
+
+        var duplicateGroups = contracts
+            .GroupBy(x => x.Contract.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() > 1)
+            .ToList();
+
+        if (duplicateGroups.Count > 0)
+        {
+            var details = duplicateGroups
+                .Select(g => $"{g.Key} => [{string.Join(", ", g.Select(x => x.FilePath))}]");
+
+            throw new InvalidOperationException(
+                $"Contract names must be unique. Duplicates found: {string.Join("; ", details)}");
+        }
     }
 
     private static string ResolveContractsDirectory(string folderName)
@@ -125,6 +154,8 @@ public sealed class ContractLoader : IContractLoader
 
         return candidates.FirstOrDefault(Directory.Exists) ?? candidates[1];
     }
+
+    private sealed record LoadedContract(ContractBase Contract, string FilePath);
 
     private sealed class ApiToApiDocument
     {
