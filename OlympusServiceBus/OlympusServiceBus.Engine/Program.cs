@@ -1,16 +1,22 @@
+using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.Engine.Workers;
+using OlympusServiceBus.RuntimeState;
 using OlympusServiceBus.Utils;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+var runtimeStateDbPath = GetRuntimeStateDbPath();
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
 
 // OOP pieces
+builder.Services.AddTransient<IContractMessageStateRepository, ContractMessageStateRepository>();
+
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
 builder.Services.AddSingleton<ApiToApiExecutor>();
@@ -23,9 +29,14 @@ builder.Services.AddHostedService<ApiToApiWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
 builder.Services.AddHostedService<WebHostReloadOnStartup>();
 
+builder.Services.AddDbContext<RuntimeStateDbContext>(options =>
+    options.UseSqlite($"Data Source={runtimeStateDbPath}"));
+
 var host = builder.Build();
 
-// Load all contracts ONCE at startup (as you wanted)
+EnsureRuntimeStateDatabase(host, runtimeStateDbPath);
+
+// Load all contracts ONCE at startup
 using (var scope = host.Services.CreateScope())
 {
     var loader = scope.ServiceProvider.GetRequiredService<IContractLoader>();
@@ -36,3 +47,22 @@ using (var scope = host.Services.CreateScope())
 }
 
 await host.RunAsync();
+
+static string GetRuntimeStateDbPath()
+{
+    var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+    var appFolder = Path.Combine(appDataPath, "OlympusServiceBus");
+    return Path.Combine(appFolder, "runtime-state.db");
+}
+
+static void EnsureRuntimeStateDatabase(IHost host, string dbPath)
+{
+    var directory = Path.GetDirectoryName(dbPath);
+
+    if (!string.IsNullOrWhiteSpace(directory))
+        Directory.CreateDirectory(directory);
+
+    using var scope = host.Services.CreateScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<RuntimeStateDbContext>();
+    dbContext.Database.EnsureCreated();
+}
