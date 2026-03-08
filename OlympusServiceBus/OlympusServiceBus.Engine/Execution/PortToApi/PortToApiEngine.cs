@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Helpers;
+using OlympusServiceBus.RuntimeState.Models;
+using OlympusServiceBus.RuntimeState.Services;
 using OlympusServiceBus.Utils.Contracts;
 using Constants = OlympusServiceBus.Utils.Constants;
 
@@ -10,11 +13,23 @@ public sealed class PortToApiEngine : IPortToApiEngine
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<PortToApiEngine> _logger;
+    private readonly IContractMessageStateService _messageStateService;
+    private readonly PortToApiBusinessKeyProvider _businessKeyProvider;
+    private readonly PortToApiPayloadHashProvider _payloadHashProvider;
 
-    public PortToApiEngine(IHttpClientFactory httpClientFactory, ILogger<PortToApiEngine> logger)
+    public PortToApiEngine(
+        IHttpClientFactory httpClientFactory, 
+        ILogger<PortToApiEngine> logger,
+        IContractMessageStateService messageStateService,
+        PortToApiBusinessKeyProvider businessKeyProvider,
+        PortToApiPayloadHashProvider payloadHashProvider
+    )
     {
         _httpClientFactory = httpClientFactory;
         _logger = logger;
+        _messageStateService = messageStateService;
+        _businessKeyProvider = businessKeyProvider;
+        _payloadHashProvider = payloadHashProvider;
     }
 
     public async Task<EngineResult> ExecuteAsync(
@@ -43,6 +58,30 @@ public sealed class PortToApiEngine : IPortToApiEngine
                     mappingErrors
                 },
                 Error: "Transformation failed");
+        }
+        
+        var businessKey = _businessKeyProvider.CreateKey(outbound, portToApiContract.BusinessKeyFields);
+        var payloadHash = _payloadHashProvider.ComputeHash(outbound);
+
+        var existingState = await _messageStateService.GetAsync(
+            portToApiContract.ContractId,
+            businessKey,
+            cancellationToken);
+
+        if (existingState is not null && existingState.PayloadHash == payloadHash)
+        {
+            existingState.LastSeenAt = DateTimeOffset.UtcNow;
+            await _messageStateService.SaveAsync(existingState, cancellationToken);
+
+            return new EngineResult(
+                Success: true,
+                StatusCode: (int)HttpStatusCode.OK,
+                Body: new
+                {
+                    skipped = true,
+                    reason = "Duplicate payload",
+                    businessKey
+                });
         }
 
         _logger.LogInformation("[{Corr}] PortToApi {ContractId} -> {Method} {Sink}",
@@ -80,6 +119,20 @@ public sealed class PortToApiEngine : IPortToApiEngine
 
         if (response.IsSuccessStatusCode)
         {
+            var now = DateTimeOffset.UtcNow;
+
+            await _messageStateService.SaveAsync(new ContractMessageStateEntity
+            {
+                ContractId = portToApiContract.ContractId,
+                ContractName = portToApiContract.Name,
+                BusinessKey = businessKey,
+                PayloadHash = payloadHash,
+                CanonicalSnapshot = outbound.ToJsonString(),
+                FirstSeenAt = existingState?.FirstSeenAt ?? now,
+                LastSeenAt = now,
+                LastPublishedAt = now
+            }, cancellationToken);
+            
             return new EngineResult(
                 Success: true,
                 StatusCode: (int)response.StatusCode,

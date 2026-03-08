@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Text.Json;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Utils.Contracts;
@@ -128,7 +127,9 @@ public sealed class FileToApiExecutor(
             Enabled = c.Enabled,
             Sink = c.Sink,
             Mappings = c.Mappings ?? [],
-            Request = c.Request
+            Request = c.Request,
+            Name =  c.Name,
+            BusinessKeyFields = c.BusinessKeyFields
         };
     }
 

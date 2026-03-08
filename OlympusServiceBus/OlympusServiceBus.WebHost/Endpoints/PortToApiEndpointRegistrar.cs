@@ -12,18 +12,15 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
     private readonly ILogger<PortToApiEndpointRegistrar> _logger;
     private readonly PortToApiSchemaBuilder _schemaBuilder;
     private readonly PortToApiInboundValidator _validator;
-    private readonly IPortToApiEngine _engine;
 
     public PortToApiEndpointRegistrar(
         ILogger<PortToApiEndpointRegistrar> logger,
         PortToApiSchemaBuilder schemaBuilder,
-        PortToApiInboundValidator validator,
-        IPortToApiEngine engine)
+        PortToApiInboundValidator validator)
     {
         _logger = logger;
         _schemaBuilder = schemaBuilder;
         _validator = validator;
-        _engine = engine;
     }
 
     public void Register(WebApplication app, List<PortToApiContract> contracts)
@@ -50,7 +47,7 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
             _logger.LogInformation("[{Contract}] Mapping {Method} {Path} -> {Sink}",
                 c.ContractId, method, path, c.Sink?.Endpoint);
 
-            app.MapMethods(path, new[] { method }, async (HttpContext ctx) =>
+            app.MapMethods(path, new[] { method }, async (HttpContext ctx, IPortToApiEngine engine) =>
                 {
                     JsonObject inboundObj;
 
@@ -58,7 +55,7 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                     {
                         if (ctx.Request.ContentLength is > 0)
                         {
-                            var node = await JsonNode.ParseAsync(ctx.Request.Body);
+                            var node = await JsonNode.ParseAsync(ctx.Request.Body, cancellationToken: ctx.RequestAborted);
                             inboundObj = node as JsonObject
                                          ?? throw new InvalidOperationException("Request body must be a JSON object.");
                         }
@@ -81,10 +78,10 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                             ? cid.ToString()
                             : Guid.NewGuid().ToString("N");
 
-                    var result = await _engine.ExecuteAsync(
+                    var result = await engine.ExecuteAsync(
                         c,
                         inboundObj,
-                        new EngineContext(correlationId),   // adjust ctor args to match your EngineContext
+                        new EngineContext(correlationId),
                         ctx.RequestAborted);
 
                     return ToHttpResult(result);

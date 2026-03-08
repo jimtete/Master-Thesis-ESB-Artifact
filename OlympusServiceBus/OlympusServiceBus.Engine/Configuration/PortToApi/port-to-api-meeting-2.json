@@ -1,49 +1,27 @@
 {
-  "FileToApi": {
-    "ContractId": "file-meetings-loopcsv",
-    "Name": "FileMeetingsLoopCsv",
+  "PortToApi": {
+    "ContractId": "meeting-ingress-to-meetings",
+    "Name": "MeetingIngressToMeetings",
     "Enabled": true,
-    "IntervalSeconds": 2,
+    "IntervalSeconds": 10,
     "BusinessKeyFields": ["EmailAddress", "MeetingTime"],
-
-    "Source": {
-      "Directory": "Configuration/Input/Meetings",
-      "SearchPattern": "*.csv",
-      "IncludeSubdirectories": false,
-      "ProcessedDirectory": "Configuration/Input/Meetings/Processed",
-      "ErrorDirectory": "Configuration/Input/Meetings/Error"
+    "Listener": {
+      "Path": "/ingress/meeting",
+      "Method": "POST"
     },
-
-    "Rules": {
-      "LoopCSV": {
-        "Delimiter": ",",
-        "HasHeader": true,
-        "RequiredColumns": ["FullName", "Email", "MeetingDateTime", "Duration", "RegisteredBy"],
-        "Bindings": [
-          { "Column": "FullName", "Field": "fullName", "Required": true },
-          { "Column": "Email", "Field": "email", "Required": true },
-          { "Column": "MeetingDateTime", "Field": "meetingDateTime", "Required": true },
-          { "Column": "Duration", "Field": "duration", "Required": true },
-          { "Column": "RegisteredBy", "Field": "registeredBy", "Required": true }
-        ]
-      }
-    },
-
     "Request": {
       "Fields": [
         { "FieldName": "fullName", "Type": "String", "Required": true },
         { "FieldName": "email", "Type": "String", "Required": true },
-        { "FieldName": "meetingDateTime", "Type": "String", "Required": true, "Format": "date-time" },
+        { "FieldName": "meetingDateTime", "Type": "String", "Required": true },
         { "FieldName": "duration", "Type": "Number", "Required": true },
         { "FieldName": "registeredBy", "Type": "String", "Required": true }
       ]
     },
-
     "Sink": {
       "Endpoint": "http://localhost:5050/s2s-api/v1/Meetings",
       "Method": "POST"
     },
-
     "Mappings": [
       {
         "TransformationType": "Split",

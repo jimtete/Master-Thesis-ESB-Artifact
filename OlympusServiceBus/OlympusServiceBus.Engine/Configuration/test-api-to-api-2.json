@@ -1,0 +1,45 @@
+{
+  "ApiToApi": {
+    "ContractId" : "guest-reigstration-to-meetings-mock-3",
+    "Name": "GuestRegistrationToMeetings",
+    "Enabled": true,
+    "IntervalSeconds": 10,
+    "Source": {
+      "Endpoint": "https://localhost:7278/get-random-guest-registration-full-name",
+      "Method": "GET"
+    },
+    "Sink": {
+      "Endpoint": "http://localhost:5050/s2s-api/v1/Meetings",
+      "Method": "POST"
+    },
+    "BusinessKeyFields": ["emailAddress", "meetingTime"],
+    "Mappings": [
+      {
+        "TransformationType": "Split",
+        "SourceFieldName": "fullName",
+        "SinkFields": ["firstName", "lastName"],
+        "Separator": " "
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "email",
+        "SinkFieldName": "emailAddress"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "meetingDateTime",
+        "SinkFieldName": "meetingTime"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "duration",
+        "SinkFieldName": "meetingDurationInHours"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "registeredBy",
+        "SinkFieldName": "registeredBy"
+      }
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Helpers;
+using OlympusServiceBus.Engine.Services;
 using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.Engine.Workers;
@@ -7,7 +8,7 @@ namespace OlympusServiceBus.Engine.Workers;
 public class ApiToApiWorker(
     ILogger<ApiToApiWorker> logger,
     IContractRegistry registry,
-    ApiToApiExecutor executor
+    IServiceScopeFactory scopeFactory
     ) : BackgroundService
 {
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
@@ -32,7 +33,9 @@ public class ApiToApiWorker(
 
                 if (DateTimeOffset.UtcNow >= nextDue)
                 {
-                    await executor.ExecuteOnce(c, stoppingToken);
+                    using var scope = scopeFactory.CreateScope();
+                    var executionService = scope.ServiceProvider.GetRequiredService<IApiToApiExecutionService>();
+                    await executionService.ExecuteAsync(c, stoppingToken);
                     lastRun[c.ContractId] = DateTimeOffset.UtcNow;
                 }
             }
