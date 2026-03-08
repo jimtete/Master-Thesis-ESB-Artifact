@@ -39,71 +39,87 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
             UpdatedAt = DateTimeOffset.UtcNow
         }, cancellationToken);
 
-        var payload = await _executor.BuildPayloadAsync(contract, cancellationToken);
+        try
+        {
+            var payload = await _executor.BuildPayloadAsync(contract, cancellationToken);
 
-        if (payload is null)
+            if (payload is null)
+            {
+                await _executionStateService.SaveAsync(new ContractExecutionStateEntity
+                {
+                    ContractId = contract.ContractId,
+                    ContractName = contract.Name,
+                    LastRunCompletedAt = DateTimeOffset.UtcNow,
+                    LastRunStatus = "NoPayload",
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }, cancellationToken);
+
+                return;
+            }
+
+            var businessKey = _businessKeyProvider.CreateKey(payload, contract.BusinessKeyFields);
+            var payloadHash = _payloadHashProvider.ComputeHash(payload);
+
+            var existingState = await _messageStateService.GetAsync(
+                contract.ContractId,
+                businessKey,
+                cancellationToken);
+
+            if (existingState is not null && existingState.PayloadHash == payloadHash)
+            {
+                existingState.LastSeenAt = DateTimeOffset.UtcNow;
+
+                await _messageStateService.SaveAsync(existingState, cancellationToken);
+
+                await _executionStateService.SaveAsync(new ContractExecutionStateEntity
+                {
+                    ContractId = contract.ContractId,
+                    ContractName = contract.Name,
+                    LastRunCompletedAt = DateTimeOffset.UtcNow,
+                    LastRunStatus = "DuplicateSkipped",
+                    UpdatedAt = DateTimeOffset.UtcNow
+                }, cancellationToken);
+
+                return;
+            }
+
+            await _executor.SendPayloadAsync(contract, payload, cancellationToken);
+
+            var now = DateTimeOffset.UtcNow;
+
+            await _messageStateService.SaveAsync(new ContractMessageStateEntity
+            {
+                ContractId = contract.ContractId,
+                ContractName = contract.Name,
+                BusinessKey = businessKey,
+                PayloadHash = payloadHash,
+                CanonicalSnapshot = payload.ToJsonString(),
+                FirstSeenAt = existingState?.FirstSeenAt ?? now,
+                LastSeenAt = now,
+                LastPublishedAt = now
+            }, cancellationToken);
+
+            await _executionStateService.SaveAsync(new ContractExecutionStateEntity
+            {
+                ContractId = contract.ContractId,
+                ContractName = contract.Name,
+                LastRunCompletedAt = now,
+                LastRunStatus = "Completed",
+                UpdatedAt = now
+            }, cancellationToken);
+        }
+        catch
         {
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
                 ContractId = contract.ContractId,
                 ContractName = contract.Name,
                 LastRunCompletedAt = DateTimeOffset.UtcNow,
-                LastRunStatus = "NoPayload",
+                LastRunStatus = "Failed",
                 UpdatedAt = DateTimeOffset.UtcNow
             }, cancellationToken);
 
-            return;
+            throw;
         }
-
-        var businessKey = _businessKeyProvider.CreateKey(payload, contract.BusinessKeyFields);
-        var payloadHash = _payloadHashProvider.ComputeHash(payload);
-
-        var existingState = await _messageStateService.GetAsync(
-            contract.ContractId,
-            businessKey,
-            cancellationToken);
-
-        if (existingState is not null && existingState.PayloadHash == payloadHash)
-        {
-            existingState.LastSeenAt = DateTimeOffset.UtcNow;
-
-            await _messageStateService.SaveAsync(existingState, cancellationToken);
-
-            await _executionStateService.SaveAsync(new ContractExecutionStateEntity
-            {
-                ContractId = contract.ContractId,
-                ContractName = contract.Name,
-                LastRunCompletedAt = DateTimeOffset.UtcNow,
-                LastRunStatus = "DuplicateSkipped",
-                UpdatedAt = DateTimeOffset.UtcNow
-            }, cancellationToken);
-
-            return;
-        }
-
-        await _executor.SendPayloadAsync(contract, payload, cancellationToken);
-
-        var now = DateTimeOffset.UtcNow;
-
-        await _messageStateService.SaveAsync(new ContractMessageStateEntity
-        {
-            ContractId = contract.ContractId,
-            ContractName = contract.Name,
-            BusinessKey = businessKey,
-            PayloadHash = payloadHash,
-            CanonicalSnapshot = payload.ToJsonString(),
-            FirstSeenAt = existingState?.FirstSeenAt ?? now,
-            LastSeenAt = now,
-            LastPublishedAt = now
-        }, cancellationToken);
-
-        await _executionStateService.SaveAsync(new ContractExecutionStateEntity
-        {
-            ContractId = contract.ContractId,
-            ContractName = contract.Name,
-            LastRunCompletedAt = now,
-            LastRunStatus = "Completed",
-            UpdatedAt = now
-        }, cancellationToken);
     }
 }

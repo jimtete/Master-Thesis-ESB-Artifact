@@ -12,12 +12,16 @@ public class ContractExecutionStateService : IContractExecutionStateService
         _repository = repository;
     }
 
-    public async Task<ContractExecutionStateEntity?> GetAsync(string contractId, CancellationToken cancellationToken = default)
+    public Task<ContractExecutionStateEntity?> GetAsync(
+        string contractId,
+        CancellationToken cancellationToken = default)
     {
-        return await _repository.GetByContractIdAsync(contractId, cancellationToken);
+        return _repository.GetByContractIdAsync(contractId, cancellationToken);
     }
 
-    public async Task SaveAsync(ContractExecutionStateEntity entity, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(
+        ContractExecutionStateEntity entity,
+        CancellationToken cancellationToken = default)
     {
         var existing = await _repository.GetByContractIdAsync(entity.ContractId, cancellationToken);
 
@@ -28,9 +32,16 @@ public class ContractExecutionStateService : IContractExecutionStateService
         }
 
         existing.ContractName = entity.ContractName;
-        existing.LastRunStartedAt = entity.LastRunStartedAt;
-        existing.LastRunCompletedAt = entity.LastRunCompletedAt;
-        existing.LastRunStatus = entity.LastRunStatus;
+
+        if (entity.LastRunStartedAt.HasValue)
+            existing.LastRunStartedAt = entity.LastRunStartedAt;
+
+        if (entity.LastRunCompletedAt.HasValue)
+            existing.LastRunCompletedAt = entity.LastRunCompletedAt;
+
+        if (!string.IsNullOrWhiteSpace(entity.LastRunStatus))
+            existing.LastRunStatus = entity.LastRunStatus;
+
         existing.UpdatedAt = entity.UpdatedAt;
 
         await _repository.UpdateAsync(existing, cancellationToken);

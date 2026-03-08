@@ -12,15 +12,20 @@ public class ContractMessageStateService : IContractMessageStateService
         _repository = repository;
     }
 
-    public async Task<ContractMessageStateEntity?> GetAsync(string contractId, string businessKey, CancellationToken cancellationToken = default)
+    public Task<ContractMessageStateEntity?> GetAsync(
+        string contractId,
+        string businessKey,
+        CancellationToken cancellationToken = default)
     {
-        return await _repository.GetByContractAndBusinessKeyAsync(
+        return _repository.GetByContractAndBusinessKeyAsync(
             contractId,
             businessKey,
-            cancellationToken);    
+            cancellationToken);
     }
 
-    public async Task SaveAsync(ContractMessageStateEntity entity, CancellationToken cancellationToken = default)
+    public async Task SaveAsync(
+        ContractMessageStateEntity entity,
+        CancellationToken cancellationToken = default)
     {
         var existing = await _repository.GetByContractAndBusinessKeyAsync(
             entity.ContractId,
@@ -36,8 +41,16 @@ public class ContractMessageStateService : IContractMessageStateService
         existing.ContractName = entity.ContractName;
         existing.PayloadHash = entity.PayloadHash;
         existing.CanonicalSnapshot = entity.CanonicalSnapshot;
-        existing.LastSeenAt = entity.LastSeenAt;
-        existing.LastPublishedAt = entity.LastPublishedAt;
 
-        await _repository.UpdateAsync(existing, cancellationToken);    }
+        if (entity.FirstSeenAt != default)
+            existing.FirstSeenAt = existing.FirstSeenAt == default ? entity.FirstSeenAt : existing.FirstSeenAt;
+
+        if (entity.LastSeenAt != default)
+            existing.LastSeenAt = entity.LastSeenAt;
+
+        if (entity.LastPublishedAt.HasValue)
+            existing.LastPublishedAt = entity.LastPublishedAt;
+
+        await _repository.UpdateAsync(existing, cancellationToken);
+    }
 }

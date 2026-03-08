@@ -101,6 +101,7 @@ public sealed class ContractLoader : IContractLoader
         }
 
         ValidateContractNames(loadedContracts);
+        ValidateBusinessKeyFields(loadedContracts);
 
         var result = loadedContracts
             .Select(x => x.Contract)
@@ -153,6 +154,23 @@ public sealed class ContractLoader : IContractLoader
         };
 
         return candidates.FirstOrDefault(Directory.Exists) ?? candidates[1];
+    }
+    
+    private static void ValidateBusinessKeyFields(List<LoadedContract> contracts)
+    {
+        var invalidContracts = contracts
+            .Where(x =>
+                x.Contract.BusinessKeyFields is null ||
+                x.Contract.BusinessKeyFields.Length == 0 ||
+                x.Contract.BusinessKeyFields.All(string.IsNullOrWhiteSpace))
+            .Select(x => $"{x.Contract.Name} ({x.FilePath})")
+            .ToList();
+
+        if (invalidContracts.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"All contracts must define at least one non-empty BusinessKeyField. Invalid contract(s): {string.Join(", ", invalidContracts)}");
+        }
     }
 
     private sealed record LoadedContract(ContractBase Contract, string FilePath);
