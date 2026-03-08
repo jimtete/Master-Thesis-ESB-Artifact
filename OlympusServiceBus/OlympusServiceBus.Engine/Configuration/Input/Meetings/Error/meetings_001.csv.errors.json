@@ -1,1 +1,0 @@
-{"contractId":"file-meetings-loopcsv","file":"meetings_001.csv","TotalRows":3,"SucceededRows":2,"FailedRows":1,"Failures":[{"RowNumber":2,"Errors":["Sink returned 400","StatusCode=400"]}]}

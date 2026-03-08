@@ -129,6 +129,7 @@ public sealed class FileToApiExecutor(
             Mappings = c.Mappings ?? [],
             Request = c.Request,
             Name =  c.Name,
+            BusinessKeyFields = c.BusinessKeyFields
         };
     }
 
