@@ -1,0 +1,54 @@
+{
+  "PortToApi": {
+    "ContractId": "meeting-ingress-to-meetings",
+    "Name": "MeetingIngressToMeetings",
+    "Enabled": true,
+    "IntervalSeconds": 10,
+    "BusinessKeyFields": ["EmailAddress", "MeetingTime"],
+    "Listener": {
+      "Path": "/ingress/meeting",
+      "Method": "POST"
+    },
+    "Request": {
+      "Fields": [
+        { "FieldName": "fullName", "Type": "String", "Required": true },
+        { "FieldName": "email", "Type": "String", "Required": true },
+        { "FieldName": "meetingDateTime", "Type": "String", "Required": true },
+        { "FieldName": "duration", "Type": "Number", "Required": true },
+        { "FieldName": "registeredBy", "Type": "String", "Required": true }
+      ]
+    },
+    "Sink": {
+      "Endpoint": "http://localhost:5050/s2s-api/v1/Meetings",
+      "Method": "POST"
+    },
+    "Mappings": [
+      {
+        "TransformationType": "Split",
+        "SourceFieldName": "fullName",
+        "SinkFields": ["FirstName", "LastName"],
+        "Separator": " "
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "email",
+        "SinkFieldName": "EmailAddress"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "meetingDateTime",
+        "SinkFieldName": "MeetingTime"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "duration",
+        "SinkFieldName": "MeetingDurationInHours"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "registeredBy",
+        "SinkFieldName": "RegisteredBy"
+      }
+    ]
+  }
+}

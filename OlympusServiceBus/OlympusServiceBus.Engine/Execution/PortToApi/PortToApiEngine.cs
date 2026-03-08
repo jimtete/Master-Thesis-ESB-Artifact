@@ -46,6 +46,19 @@ public sealed class PortToApiEngine : IPortToApiEngine
 
         // 1) Transform inbound -> outbound using contract mappings (Type1)
         var (outbound, mappingErrors) = PortToApiPayloadBuilder.BuildOutbound(portToApiContract, inbound);
+
+        if (mappingErrors.Count > 0)
+        {
+            return new EngineResult(
+                Success: false,
+                StatusCode: (int)HttpStatusCode.BadRequest,
+                Body: new
+                {
+                    contractId = portToApiContract.ContractId,
+                    mappingErrors
+                },
+                Error: "Transformation failed");
+        }
         
         var businessKey = _businessKeyProvider.CreateKey(outbound, portToApiContract.BusinessKeyFields);
         var payloadHash = _payloadHashProvider.ComputeHash(outbound);
@@ -69,19 +82,6 @@ public sealed class PortToApiEngine : IPortToApiEngine
                     reason = "Duplicate payload",
                     businessKey
                 });
-        }
-
-        if (mappingErrors.Count > 0)
-        {
-            return new EngineResult(
-                Success: false,
-                StatusCode: (int)HttpStatusCode.BadRequest,
-                Body: new
-                {
-                    contractId = portToApiContract.ContractId,
-                    mappingErrors
-                },
-                Error: "Transformation failed");
         }
 
         _logger.LogInformation("[{Corr}] PortToApi {ContractId} -> {Method} {Sink}",

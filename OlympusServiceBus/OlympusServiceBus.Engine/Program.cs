@@ -26,13 +26,14 @@ builder.Services.AddScoped<IContractMessageStateService, ContractMessageStateSer
 builder.Services.AddScoped<IContractExecutionStateRepository, ContractExecutionStateRepository>();
 builder.Services.AddScoped<IContractExecutionStateService, ContractExecutionStateService>();
 
+builder.Services.AddScoped<IPortToApiEngine, PortToApiEngine>();
+builder.Services.AddScoped<FileToApiExecutor>();
+
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
 builder.Services.AddSingleton<ApiToApiExecutor>();
-builder.Services.AddSingleton<IPortToApiEngine, PortToApiEngine>();
 
 builder.Services.AddSingleton<CsvLoopProcessor>();
-builder.Services.AddSingleton<FileToApiExecutor>();
 
 builder.Services.AddSingleton<ApiToApiPayloadHashProvider>();
 builder.Services.AddSingleton<ApiToApiBusinessKeyProvider>();
