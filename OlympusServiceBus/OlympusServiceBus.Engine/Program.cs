@@ -36,6 +36,8 @@ builder.Services.AddSingleton<FileToApiExecutor>();
 
 builder.Services.AddSingleton<ApiToApiPayloadHashProvider>();
 builder.Services.AddSingleton<ApiToApiBusinessKeyProvider>();
+builder.Services.AddSingleton<PortToApiBusinessKeyProvider>();
+builder.Services.AddSingleton<PortToApiPayloadHashProvider>();
 
 builder.Services.AddHostedService<ApiToApiWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
