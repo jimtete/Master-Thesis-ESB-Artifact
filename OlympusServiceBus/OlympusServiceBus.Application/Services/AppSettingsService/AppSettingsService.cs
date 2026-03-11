@@ -53,8 +53,7 @@ public class AppSettingsService : IAppSettingsService
     private static string GetSettingsFilePath()
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var applicationDirectory = Path.Combine(appDataPath, "OlympusServiceBus/Configurator");
-
+        var applicationDirectory = Path.Combine(appDataPath, "OlympusServiceBus", "Configurator");
         return Path.Combine(applicationDirectory, SettingsFileName);
     }
 }
