@@ -8,6 +8,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using OlympusServiceBusApplication.Services.AppSettingsService;
+using OlympusServiceBusApplication.ViewModels;
 
 namespace OlympusServiceBusApplication;
 
@@ -16,8 +18,13 @@ namespace OlympusServiceBusApplication;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private readonly MainWindowViewModel _viewModel;
+    
     public MainWindow()
     {
         InitializeComponent();
+        
+        var appSettingsService = new AppSettingsService();
+        
     }
 }

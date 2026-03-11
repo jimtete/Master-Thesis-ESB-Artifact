@@ -1,6 +1,9 @@
 ﻿using System.Configuration;
 using System.Data;
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using OlympusServiceBusApplication.Services.AppSettingsService;
+using OlympusServiceBusApplication.ViewModels;
 
 namespace OlympusServiceBusApplication;
 
@@ -9,4 +12,32 @@ namespace OlympusServiceBusApplication;
 /// </summary>
 public partial class App : Application
 {
+    private ServiceProvider? _serviceProvider;
+
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        
+        var services = new ServiceCollection();
+        
+        ConfigureServices(services);
+        _serviceProvider = services.BuildServiceProvider();
+
+        var mainWindow = _serviceProvider.GetService<MainWindow>();
+        mainWindow.Show();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _serviceProvider?.Dispose();
+        base.OnExit(e);
+    }
+
+    private static void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<IAppSettingsService, AppSettingsService>();
+        services.AddSingleton<MainWindow>();
+        
+        services.AddTransient<MainWindowViewModel>();
+    }
 }
