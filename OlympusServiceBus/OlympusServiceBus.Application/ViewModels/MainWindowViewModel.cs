@@ -1,13 +1,18 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
+using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models;
 using OlympusServiceBusApplication.Services.AppSettingsService;
+using OlympusServiceBusApplication.Services.FolderPickerService;
 
 namespace OlympusServiceBusApplication.ViewModels;
 
 public class MainWindowViewModel : INotifyPropertyChanged
 {
     private readonly IAppSettingsService _appSettingsService;
+    private readonly IFolderPickerService _folderPickerService;
+    
     private AppSettings _appSettings = new();
     private string _contractsRootDirectory = string.Empty;
 
@@ -25,10 +30,17 @@ public class MainWindowViewModel : INotifyPropertyChanged
             OnPropertyChanged();
         }
     }
+    
+    public ICommand BrowseContractsRootDirectoryCommand { get; }
 
-    public MainWindowViewModel(IAppSettingsService appSettingsService)
+    public MainWindowViewModel(
+        IAppSettingsService appSettingsService,
+        IFolderPickerService folderPickerService)
     {
         _appSettingsService = appSettingsService;
+        _folderPickerService = folderPickerService;
+
+        BrowseContractsRootDirectoryCommand = new AsyncRelayCommand(BrowseContractsRootDirectoryAsync);
     }
 
     public async Task LoadAsync()
@@ -41,6 +53,19 @@ public class MainWindowViewModel : INotifyPropertyChanged
     {
         _appSettings.ContractRootDirectory = ContractsRootDirectory;
         await _appSettingsService.SaveAsync(_appSettings);
+    }
+
+    private async Task BrowseContractsRootDirectoryAsync()
+    {
+        var selectedFolder = _folderPickerService.PickFolder(ContractsRootDirectory);
+
+        if (string.IsNullOrWhiteSpace(selectedFolder))
+        {
+            return;
+        }
+        
+        ContractsRootDirectory = selectedFolder;
+        await SaveAsync();
     }
     
     public event PropertyChangedEventHandler? PropertyChanged;

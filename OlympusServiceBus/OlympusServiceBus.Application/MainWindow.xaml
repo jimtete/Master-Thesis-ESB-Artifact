@@ -5,8 +5,38 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:OlympusServiceBusApplication"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        WindowStartupLocation="CenterScreen"
+        Title="Olympus Service Bus Configurator" Height="250" Width="700">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
+        <TextBlock Grid.Row="0"
+                   Text="Contracts Root Directory"
+                   FontSize="16"
+                   FontWeight="SemiBold" />
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="140" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0"
+                     Text="{Binding ContractsRootDirectory, UpdateSourceTrigger=PropertyChanged}"
+                     MinHeight="32"
+                     VerticalContentAlignment="Center" />
+
+            <Button Grid.Column="2"
+                    Content="Browse..."
+                    MinHeight="32"
+                    Command="{Binding BrowseContractsRootDirectoryCommand}" />
+        </Grid>
     </Grid>
 </Window>

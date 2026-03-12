@@ -1,9 +1,9 @@
-﻿using System.Configuration;
-using System.Data;
-using System.Windows;
+﻿using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using OlympusServiceBusApplication.Services.AppSettingsService;
+using OlympusServiceBusApplication.Services.FolderPickerService;
 using OlympusServiceBusApplication.ViewModels;
+using Application = System.Windows.Application;
 
 namespace OlympusServiceBusApplication;
 
@@ -39,5 +39,6 @@ public partial class App : Application
         services.AddSingleton<MainWindow>();
         
         services.AddTransient<MainWindowViewModel>();
+        services.AddTransient<IFolderPickerService, FolderPickerService>();
     }
 }

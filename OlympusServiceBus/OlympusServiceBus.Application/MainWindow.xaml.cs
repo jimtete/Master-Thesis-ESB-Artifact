@@ -20,11 +20,25 @@ public partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _viewModel;
     
-    public MainWindow()
+    public MainWindow(MainWindowViewModel viewModel)
     {
         InitializeComponent();
         
-        var appSettingsService = new AppSettingsService();
-        
+        _viewModel = viewModel;
+        DataContext = viewModel;
+
+        Loaded += MainWindow_Loaded;
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await _viewModel.LoadAsync();
+        }
+        catch (Exception _)
+        {
+            // ignored
+        }
     }
 }
