@@ -1,4 +1,4 @@
-namespace OlympusServiceBusApplication.Services.ContractsWorkspaceService;
+namespace OlympusServiceBusApplication.Services.ContractsService;
 
 public interface IContractsWorkspaceService
 {

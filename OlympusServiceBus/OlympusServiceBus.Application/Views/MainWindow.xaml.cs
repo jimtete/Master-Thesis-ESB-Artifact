@@ -1,43 +1,59 @@
-﻿using System.Windows;
+﻿using System.ComponentModel;
+using System.Windows;
 using OlympusServiceBusApplication.ViewModels;
 
 namespace OlympusServiceBusApplication.Views;
 
-/// <summary>
-/// Interaction logic for MainWindow.xaml
-/// </summary>
 public partial class MainWindow : Window
 {
     private readonly MainWindowViewModel _viewModel;
     private readonly ConfiguratorWindow _configuratorWindow;
-    
-    public MainWindow(MainWindowViewModel viewModel, ConfiguratorWindow configuratorWindow)
+    private bool _hasRedirected;
+
+    public MainWindow(
+        MainWindowViewModel viewModel,
+        ConfiguratorWindow configuratorWindow)
     {
         InitializeComponent();
-        
-        _configuratorWindow = configuratorWindow;
-        
+
         _viewModel = viewModel;
-        DataContext = viewModel;
+        _configuratorWindow = configuratorWindow;
+
+        DataContext = _viewModel;
 
         Loaded += MainWindow_Loaded;
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            await _viewModel.LoadAsync();
+        await _viewModel.LoadAsync();
+        RedirectToConfiguratorIfReady();
+    }
 
-            if (!string.IsNullOrWhiteSpace(_viewModel.ContractsRootDirectory))
-            {
-                _configuratorWindow.Show();
-                Close();
-            }
-        }
-        catch (Exception _)
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsSetupComplete))
         {
-            // ignored
+            RedirectToConfiguratorIfReady();
         }
+    }
+
+    private void RedirectToConfiguratorIfReady()
+    {
+        if (_hasRedirected || !_viewModel.IsSetupComplete)
+        {
+            return;
+        }
+
+        _hasRedirected = true;
+        _configuratorWindow.Show();
+        Close();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _viewModel.PropertyChanged -= ViewModel_PropertyChanged;
+        base.OnClosed(e);
     }
 }

@@ -1,7 +1,7 @@
 using System.IO;
 using OlympusServiceBusApplication.Services.AppSettingsService;
 
-namespace OlympusServiceBusApplication.Services.ContractsWorkspaceService;
+namespace OlympusServiceBusApplication.Services.ContractsService;
 
 public class ContractsWorkspaceService : IContractsWorkspaceService
 {

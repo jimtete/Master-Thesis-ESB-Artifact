@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:models="clr-namespace:OlympusServiceBusApplication.Models"
         mc:Ignorable="d"
         Title="Olympus Service Bus Configurator"
         Height="800"
@@ -11,23 +12,53 @@
         MinWidth="1200"
         WindowStartupLocation="CenterScreen">
 
+    <Window.Resources>
+        <HierarchicalDataTemplate DataType="{x:Type models:FileExplorerNode}"
+                                  ItemsSource="{Binding Children}">
+            <TextBlock Text="{Binding Name}" />
+        </HierarchicalDataTemplate>
+    </Window.Resources>
+
     <Grid Margin="12">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="12" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <GroupBox Grid.Column="0" Header="Contracts Explorer">
-            <Grid Margin="8">
-                <TextBlock Text="Contracts tree will appear here." />
-            </Grid>
-        </GroupBox>
+        <Border Grid.Row="0"
+                Padding="10"
+                BorderBrush="#D0D0D0"
+                BorderThickness="1"
+                CornerRadius="4">
+            <StackPanel>
+                <TextBlock Text="Contracts Directory"
+                           FontSize="15"
+                           FontWeight="SemiBold" />
+                <TextBlock Margin="0,6,0,0"
+                           Text="{Binding ContractsDirectoryPath}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
 
-        <GroupBox Grid.Column="2" Header="Details">
-            <Grid Margin="8">
-                <TextBlock Text="Details/editor area will come later." />
-            </Grid>
-        </GroupBox>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <GroupBox Grid.Column="0" Header="Contracts Explorer">
+                <Grid Margin="8">
+                    <TreeView ItemsSource="{Binding RootNode.Children}" />
+                </Grid>
+            </GroupBox>
+
+            <GroupBox Grid.Column="2" Header="Details">
+                <Grid Margin="8">
+                    <TextBlock Text="Details/editor area will come later." />
+                </Grid>
+            </GroupBox>
+        </Grid>
     </Grid>
 </Window>
