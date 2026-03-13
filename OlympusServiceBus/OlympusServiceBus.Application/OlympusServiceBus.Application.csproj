@@ -14,4 +14,12 @@
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Page Update="Views\MainWindow.xaml">
+        <Generator>MSBuild:Compile</Generator>
+        <XamlRuntime>Wpf</XamlRuntime>
+        <SubType>Designer</SubType>
+      </Page>
+    </ItemGroup>
+
 </Project>

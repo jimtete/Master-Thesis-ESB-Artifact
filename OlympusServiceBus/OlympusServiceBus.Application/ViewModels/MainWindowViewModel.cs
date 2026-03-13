@@ -15,6 +15,7 @@ public class MainWindowViewModel : INotifyPropertyChanged
     
     private AppSettings _appSettings = new();
     private string _contractsRootDirectory = string.Empty;
+    private bool _isSetupComplete;
 
     public string ContractsRootDirectory
     {
@@ -27,6 +28,22 @@ public class MainWindowViewModel : INotifyPropertyChanged
             }
             
             _contractsRootDirectory = value;
+            OnPropertyChanged();
+            UpdateIsSetupComplete();
+        }
+    }
+    
+    public bool IsSetupComplete
+    {
+        get => _isSetupComplete;
+        set
+        {
+            if (_isSetupComplete == value)
+            {
+                return;
+            }
+            
+            _isSetupComplete = value;
             OnPropertyChanged();
         }
     }
@@ -47,12 +64,14 @@ public class MainWindowViewModel : INotifyPropertyChanged
     {
         _appSettings = await _appSettingsService.LoadAsync();
         ContractsRootDirectory = _appSettings.ContractRootDirectory;
+        UpdateIsSetupComplete();
     }
     
     public async Task SaveAsync()
     {
         _appSettings.ContractRootDirectory = ContractsRootDirectory;
         await _appSettingsService.SaveAsync(_appSettings);
+        UpdateIsSetupComplete();
     }
 
     private async Task BrowseContractsRootDirectoryAsync()
@@ -69,9 +88,18 @@ public class MainWindowViewModel : INotifyPropertyChanged
     }
     
     public event PropertyChangedEventHandler? PropertyChanged;
-
+    
+    #region PRIVATE HELPERS
+    
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    private void UpdateIsSetupComplete()
+    {
+        IsSetupComplete = !string.IsNullOrWhiteSpace(ContractsRootDirectory);
+    }
+    
+    #endregion
 }

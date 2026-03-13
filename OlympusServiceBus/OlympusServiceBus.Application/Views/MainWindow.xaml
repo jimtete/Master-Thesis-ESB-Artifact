@@ -1,27 +1,34 @@
-﻿<Window x:Class="OlympusServiceBusApplication.MainWindow"
+﻿<Window x:Class="OlympusServiceBusApplication.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:OlympusServiceBusApplication"
         mc:Ignorable="d"
-        WindowStartupLocation="CenterScreen"
-        Title="Olympus Service Bus Configurator" Height="250" Width="700">
+        Title="Olympus Service Bus Setup"
+        Height="250"
+        Width="800"
+        WindowStartupLocation="CenterScreen">
+
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="12" />
+            <RowDefinition Height="8" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0"
-                   Text="Contracts Root Directory"
-                   FontSize="16"
+                   Text="Select Contracts Root Directory"
+                   FontSize="18"
                    FontWeight="SemiBold" />
 
-        <Grid Grid.Row="2">
+        <TextBlock Grid.Row="2"
+                   Text="Choose the root folder where the application will manage its Contracts workspace."
+                   TextWrapping="Wrap" />
+
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="12" />
