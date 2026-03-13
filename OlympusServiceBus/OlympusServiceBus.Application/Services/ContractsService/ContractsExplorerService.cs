@@ -20,6 +20,63 @@ public class ContractsExplorerService : IContractsExplorerService
         return await Task.Run(() => BuildDirectoryNode(rootPath));
     }
 
+    public async Task CreateDirectoryAsync(string parentPath, string directoryName)
+    {
+        if (string.IsNullOrWhiteSpace(parentPath))
+        {
+            throw new ArgumentException("Parent path cannot be null or empty.", nameof(parentPath));
+        }
+
+        if (string.IsNullOrWhiteSpace(directoryName))
+        {
+            throw new ArgumentException("Directory name cannot be null or empty.", nameof(directoryName));
+        }
+
+        if (!Directory.Exists(parentPath))
+        {
+            throw new DirectoryNotFoundException($"Parent path was not found: {parentPath}");
+        }
+
+        var targetDirectoryPath = Path.Combine(parentPath, directoryName.Trim());
+        
+        await Task.Run(() => Directory.CreateDirectory(targetDirectoryPath));
+    }
+
+    public async Task CreateContractFileAsync(string parentPath, string contractName)
+    {
+        if (string.IsNullOrWhiteSpace(parentPath))
+        {
+            throw new ArgumentException("Parent path cannot be null or empty.", nameof(parentPath));
+        }
+
+        if (string.IsNullOrWhiteSpace(contractName))
+        {
+            throw new ArgumentException("Contract name cannot be null or empty.", nameof(contractName));
+        }
+
+        if (!Directory.Exists(parentPath))
+        {
+            throw new DirectoryNotFoundException($"Parent directory was not found: {parentPath}");
+        }
+
+        var normalizedFileName = NormalizeContractFileName(contractName);
+        var filePath = Path.Combine(parentPath, normalizedFileName);
+
+        if (!File.Exists(filePath))
+        {
+            await File.WriteAllTextAsync(filePath, string.Empty);
+        }
+    }
+
+    private static string NormalizeContractFileName(string contractName)
+    {
+        var trimmedName = contractName.Trim();
+
+        return trimmedName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)
+            ? trimmedName
+            : $"{trimmedName}.json";
+    }
+
     private static FileExplorerNode BuildDirectoryNode(string directoryPath)
     {
         var directoryInfo = new DirectoryInfo(directoryPath);

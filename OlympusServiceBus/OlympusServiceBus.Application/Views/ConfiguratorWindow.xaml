@@ -24,6 +24,8 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="12" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0"
@@ -50,7 +52,67 @@
 
             <GroupBox Grid.Column="0" Header="Contracts Explorer">
                 <Grid Margin="8">
-                    <TreeView ItemsSource="{Binding RootNode.Children}" />
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="8" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="140" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding NewDirectoryName, UpdateSourceTrigger=PropertyChanged}"
+                                 MinHeight="30"
+                                 VerticalContentAlignment="Center" />
+
+                        <Button Grid.Column="2"
+                                Content="Create Folder"
+                                MinHeight="30"
+                                Command="{Binding CreateDirectoryCommand}" />
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="8" />
+                            <ColumnDefinition Width="140" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding NewContractName, UpdateSourceTrigger=PropertyChanged}"
+                                 MinHeight="30"
+                                 VerticalContentAlignment="Center" />
+
+                        <Button Grid.Column="2"
+                                Content="Create Contract"
+                                MinHeight="30"
+                                Command="{Binding CreateContractCommand}" />
+                    </Grid>
+
+                    <Button Grid.Row="4"
+                            Content="Refresh"
+                            Width="140"
+                            HorizontalAlignment="Left"
+                            MinHeight="30"
+                            Command="{Binding RefreshCommand}" />
+
+                    <Border Grid.Row="6"
+                            BorderBrush="#D0D0D0"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="6">
+                        <TreeView x:Name="ContractsTreeView"
+                                  ItemsSource="{Binding RootNode.Children}" />
+                    </Border>
                 </Grid>
             </GroupBox>
 
@@ -60,5 +122,13 @@
                 </Grid>
             </GroupBox>
         </Grid>
+
+        <Border Grid.Row="4"
+                Padding="8"
+                BorderBrush="#D0D0D0"
+                BorderThickness="1"
+                CornerRadius="4">
+            <TextBlock Text="{Binding StatusMessage}" />
+        </Border>
     </Grid>
 </Window>
