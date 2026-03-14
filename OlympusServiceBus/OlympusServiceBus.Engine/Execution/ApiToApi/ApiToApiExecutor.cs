@@ -16,7 +16,9 @@ public class ApiToApiExecutor
         _httpClientFactory = httpClientFactory;
     }
 
-    public async Task<JsonObject?> BuildPayloadAsync(ApiToApiContract contract, CancellationToken cancellationToken)
+    public async Task<ApiToApiExecutionResult?> BuildExecutionAsync(
+        ApiToApiContract contract,
+        CancellationToken cancellationToken)
     {
         if (!contract.Enabled)
             return null;
@@ -32,14 +34,16 @@ public class ApiToApiExecutor
 
         if (!contract.Source.Method.Equals("GET", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogWarning("[{Contract}] PoC supports Source.Method=GET only. Found: {Method}",
-                contract.ContractId, contract.Source.Method);
+            _logger.LogWarning(
+                "[{Contract}] PoC supports Source.Method=GET only. Found: {Method}",
+                contract.ContractId,
+                contract.Source.Method);
+
             return null;
         }
 
         var client = _httpClientFactory.CreateClient();
 
-        // 1) Pull source
         JsonObject? sourceObj;
         try
         {
@@ -57,11 +61,15 @@ public class ApiToApiExecutor
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[{Contract}] Source call failed: {Endpoint}", contract.ContractId, contract.Source.Endpoint);
-            return null;
+            _logger.LogError(
+                ex,
+                "[{Contract}] Source call failed: {Endpoint}",
+                contract.ContractId,
+                contract.Source.Endpoint);
+
+            throw;
         }
 
-        // 2) Transform
         var sinkPayload = new JsonObject();
 
         foreach (var m in contract.Mappings ?? Array.Empty<ApiFieldConfig>())
@@ -154,29 +162,14 @@ public class ApiToApiExecutor
             return null;
         }
 
-        // 3) Push sink
-        // try
-        // {
-        //     using var req = new HttpRequestMessage(new HttpMethod(contract.Sink.Method), contract.Sink.Endpoint)
-        //     {
-        //         Content = JsonContent.Create(sinkPayload)
-        //     };
-        //
-        //     using var resp = await client.SendAsync(req, cancellationToken);
-        //     resp.EnsureSuccessStatusCode();
-        //
-        //     _logger.LogInformation("[{Contract}] Forwarded payload to sink. Payload: {Payload}",
-        //         contract.ContractId, sinkPayload.ToJsonString());
-        // }
-        // catch (Exception ex)
-        // {
-        //     _logger.LogError(ex, "[{Contract}] Sink call failed: {Endpoint}", contract.ContractId, contract.Sink.Endpoint);
-        // }
-        
-        return sinkPayload;
+        return new ApiToApiExecutionResult
+        {
+            SourcePayload = sourceObj,
+            SinkPayload = sinkPayload
+        };
     }
 
-    public async Task SendPayloadAsync(
+    public async Task<JsonObject?> SendPayloadAsync(
         ApiToApiContract contract,
         JsonObject sinkPayload,
         CancellationToken cancellationToken)
@@ -185,22 +178,36 @@ public class ApiToApiExecutor
 
         try
         {
-            using var req = new HttpRequestMessage(new HttpMethod(contract.Sink.Method ?? "POST"), contract.Sink.Endpoint)
+            using var req = new HttpRequestMessage(
+                new HttpMethod(contract.Sink.Method ?? "POST"),
+                contract.Sink.Endpoint)
             {
                 Content = JsonContent.Create(sinkPayload)
             };
 
             using var resp = await client.SendAsync(req, cancellationToken);
+            var responseText = await resp.Content.ReadAsStringAsync(cancellationToken);
+
             resp.EnsureSuccessStatusCode();
+
+            JsonObject? responsePayload = null;
+
+            if (!string.IsNullOrWhiteSpace(responseText))
+            {
+                responsePayload = JsonNode.Parse(responseText) as JsonObject;
+            }
 
             _logger.LogInformation(
                 "[{Contract}] Forwarded payload to sink. Payload: {Payload}",
                 contract.ContractId,
                 sinkPayload.ToJsonString());
+
+            return responsePayload;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
+            _logger.LogError(
+                ex,
                 "[{Contract}] Sink call failed: {Endpoint}",
                 contract.ContractId,
                 contract.Sink.Endpoint);
@@ -208,7 +215,7 @@ public class ApiToApiExecutor
             throw;
         }
     }
-    
+
     private static bool TryGetValueCaseInsensitive(JsonObject obj, string key, out JsonNode? value)
     {
         if (obj.TryGetPropertyValue(key, out value))
@@ -226,5 +233,4 @@ public class ApiToApiExecutor
         value = null;
         return false;
     }
-    
 }

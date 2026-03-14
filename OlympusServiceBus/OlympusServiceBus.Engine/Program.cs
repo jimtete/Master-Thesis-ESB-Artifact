@@ -35,8 +35,10 @@ builder.Services.AddScoped<FileToApiExecutor>();
 builder.Services.AddScoped<IAntiContractExecutor>(sp =>
     sp.GetRequiredService<ApiStatusAntiContractExecutor>());
 builder.Services.AddScoped<AntiContractExecutionService>();
+builder.Services.AddScoped<AntiContractDispatcher>();
 
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
+builder.Services.AddSingleton<IAntiContractRegistry, InMemoryAntiContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
 builder.Services.AddSingleton<ApiToApiExecutor>();
 
@@ -63,11 +65,13 @@ using (var scope = host.Services.CreateScope())
 {
     var loader = scope.ServiceProvider.GetRequiredService<IContractLoader>();
     var registry = scope.ServiceProvider.GetRequiredService<IContractRegistry>();
+    var antiContractRegistry = scope.ServiceProvider.GetRequiredService<IAntiContractRegistry>();
 
     var contracts = loader.LoadAllContracts("Configuration");
     registry.SetAllContracts(contracts);
 
     var antiContracts = loader.LoadAllAntiContracts("Configuration");
+    antiContractRegistry.SetAllAntiContracts(antiContracts);
 
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
         .CreateLogger("Startup");

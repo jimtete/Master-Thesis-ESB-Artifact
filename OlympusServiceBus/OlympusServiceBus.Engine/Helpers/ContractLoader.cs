@@ -37,6 +37,11 @@ public sealed class ContractLoader : IContractLoader
 
         foreach (var file in files)
         {
+            if (ShouldSkipForwardContractFile(file))
+            {
+                continue;
+            }
+            
             try
             {
                 var json = File.ReadAllText(file);
@@ -129,6 +134,11 @@ public sealed class ContractLoader : IContractLoader
 
         foreach (var file in files)
         {
+            if (ShouldSkipAntiContractFile(file))
+            {
+                continue;
+            }
+            
             try
             {
                 var json = File.ReadAllText(file);
@@ -300,5 +310,16 @@ public sealed class ContractLoader : IContractLoader
     private sealed class ApiStatusAntiContractDocument
     {
         public ApiStatusAntiContract? ApiStatusAntiContract { get; set; }
+    }
+    
+    private static bool ShouldSkipForwardContractFile(string filePath)
+    {
+        return filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+               || filePath.Contains($"{Path.DirectorySeparatorChar}Input{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldSkipAntiContractFile(string filePath)
+    {
+        return !filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 }

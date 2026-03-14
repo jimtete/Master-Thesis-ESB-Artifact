@@ -3,7 +3,7 @@
     "ContractId": "guest-registration-to-meetings-status-return",
     "ContractType": "ApiStatusAntiContract",
     "SourceContractId": "guest-registration-to-meetings-mock-3",
-    "TriggerMode": "OnFailure",
+    "TriggerMode": "Always",
     "CorrelationFields": [
       "emailAddress",
       "meetingTime"
