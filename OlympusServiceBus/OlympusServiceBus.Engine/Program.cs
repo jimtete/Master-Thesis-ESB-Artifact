@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
+using OlympusServiceBus.Engine.Execution.AntiContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
@@ -17,6 +18,7 @@ var runtimeStateDbPath = GetRuntimeStateDbPath();
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
+builder.Services.AddHttpClient<ApiStatusAntiContractExecutor>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();
@@ -29,7 +31,14 @@ builder.Services.AddScoped<IContractExecutionStateService, ContractExecutionStat
 builder.Services.AddScoped<IPortToApiEngine, PortToApiEngine>();
 builder.Services.AddScoped<FileToApiExecutor>();
 
+// Anti-Contract services
+builder.Services.AddScoped<IAntiContractExecutor>(sp =>
+    sp.GetRequiredService<ApiStatusAntiContractExecutor>());
+builder.Services.AddScoped<AntiContractExecutionService>();
+builder.Services.AddScoped<AntiContractDispatcher>();
+
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
+builder.Services.AddSingleton<IAntiContractRegistry, InMemoryAntiContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
 builder.Services.AddSingleton<ApiToApiExecutor>();
 
@@ -56,9 +65,18 @@ using (var scope = host.Services.CreateScope())
 {
     var loader = scope.ServiceProvider.GetRequiredService<IContractLoader>();
     var registry = scope.ServiceProvider.GetRequiredService<IContractRegistry>();
+    var antiContractRegistry = scope.ServiceProvider.GetRequiredService<IAntiContractRegistry>();
 
     var contracts = loader.LoadAllContracts("Configuration");
     registry.SetAllContracts(contracts);
+
+    var antiContracts = loader.LoadAllAntiContracts("Configuration");
+    antiContractRegistry.SetAllAntiContracts(antiContracts);
+
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Startup");
+
+    startupLogger.LogInformation("Anti-contracts loaded at startup: {Count}", antiContracts.Count);
 }
 
 await host.RunAsync();

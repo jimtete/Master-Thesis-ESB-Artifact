@@ -144,7 +144,51 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
    .WithTags("Health")
    .WithOpenApi();
 
+app.MapPost("/guest-registration-status", (
+        GuestRegistrationStatusCallback callback,
+        ILogger<Program> logger) =>
+    {
+        logger.LogInformation(
+            "Received guest registration status callback. EmailAddress: {EmailAddress}, MeetingTime: {MeetingTime}, BusinessKey: {BusinessKey}, ExecutionStatus: {ExecutionStatus}, Status: {Status}, ErrorMessage: {ErrorMessage}",
+            callback.EmailAddress,
+            callback.MeetingTime,
+            callback.BusinessKey,
+            callback.ExecutionStatus,
+            callback.Status,
+            callback.ErrorMessage);
+
+        return Results.Ok(new
+        {
+            received = true,
+            message = "Guest registration status callback accepted",
+            callback.BusinessKey,
+            callback.ExecutionStatus,
+            receivedAtUtc = DateTime.UtcNow
+        });
+    })
+    .WithName("GuestRegistrationStatus")
+    .WithTags("Mock Callbacks")
+    .Produces(StatusCodes.Status200OK)
+    .WithOpenApi();
+
+
+
 app.Run();
+
+public record GuestRegistrationStatusCallback(
+    string? Source,
+    string? MessageType,
+    string? EmailAddress,
+    DateTimeOffset? MeetingTime,
+    string? BusinessKey,
+    string? SourceContractId,
+    string? ExecutionStatus,
+    string? ErrorMessage,
+    string? ErrorCode,
+    DateTimeOffset? CompletedAtUtc,
+    string? Status
+);
+
 
 public record GuestRegistration(
     string FirstName,

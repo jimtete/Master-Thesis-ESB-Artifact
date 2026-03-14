@@ -16,4 +16,8 @@
       <ProjectReference Include="..\OlympusServiceBus.RuntimeState\OlympusServiceBus.RuntimeState.csproj" />
       <ProjectReference Include="..\OlympusServiceBus.Utils\OlympusServiceBus.Utils.csproj" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Configuration\PortToApi\" />
+    </ItemGroup>
 </Project>
