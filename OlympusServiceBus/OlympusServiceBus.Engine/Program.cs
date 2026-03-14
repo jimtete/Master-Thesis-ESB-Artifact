@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
+using OlympusServiceBus.Engine.Execution.AntiContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
@@ -17,6 +18,7 @@ var runtimeStateDbPath = GetRuntimeStateDbPath();
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
+builder.Services.AddHttpClient<ApiStatusAntiContractExecutor>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();
@@ -28,6 +30,11 @@ builder.Services.AddScoped<IContractExecutionStateService, ContractExecutionStat
 
 builder.Services.AddScoped<IPortToApiEngine, PortToApiEngine>();
 builder.Services.AddScoped<FileToApiExecutor>();
+
+// Anti-Contract services
+builder.Services.AddScoped<IAntiContractExecutor>(sp =>
+    sp.GetRequiredService<ApiStatusAntiContractExecutor>());
+builder.Services.AddScoped<AntiContractExecutionService>();
 
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
@@ -59,6 +66,13 @@ using (var scope = host.Services.CreateScope())
 
     var contracts = loader.LoadAllContracts("Configuration");
     registry.SetAllContracts(contracts);
+
+    var antiContracts = loader.LoadAllAntiContracts("Configuration");
+
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Startup");
+
+    startupLogger.LogInformation("Anti-contracts loaded at startup: {Count}", antiContracts.Count);
 }
 
 await host.RunAsync();

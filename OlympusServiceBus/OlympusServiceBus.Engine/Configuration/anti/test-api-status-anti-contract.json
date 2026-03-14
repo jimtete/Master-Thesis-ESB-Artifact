@@ -1,0 +1,41 @@
+{
+  "ApiStatusAntiContract": {
+    "ContractId": "guest-registration-to-meetings-status-return",
+    "ContractType": "ApiStatusAntiContract",
+    "SourceContractId": "guest-registration-to-meetings-mock-3",
+    "TriggerMode": "OnFailure",
+    "CorrelationFields": [
+      "emailAddress",
+      "meetingTime"
+    ],
+    "Metadata": {
+      "purpose": "status-feedback",
+      "domain": "guest-registration"
+    },
+    "TargetSystem": "GuestRegistrationMockSource",
+    "Endpoint": "https://localhost:7278/guest-registration-status",
+    "Method": "POST",
+    "PayloadMappings": {
+      "emailAddress": "$.transformed.emailAddress",
+      "meetingTime": "$.transformed.meetingTime",
+      "businessKey": "$context.businessKey",
+      "sourceContractId": "$context.sourceContractId",
+      "executionStatus": "$context.executionStatus",
+      "errorMessage": "$context.errorMessage",
+      "errorCode": "$context.errorCode",
+      "completedAtUtc": "$context.completedAtUtc"
+    },
+    "StaticPayload": {
+      "source": "OlympusServiceBus",
+      "messageType": "DeliveryStatus"
+    },
+    "StatusMappings": {
+      "Success": "Delivered",
+      "Failed": "Rejected",
+      "PartiallySucceeded": "PartiallyDelivered",
+      "Skipped": "Ignored"
+    },
+    "TimeoutSeconds": 30,
+    "RetryOnFailure": true
+  }
+}

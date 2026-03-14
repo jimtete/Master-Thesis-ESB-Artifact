@@ -1,6 +1,6 @@
 {
   "ApiToApi": {
-    "ContractId" : "guest-reigstration-to-meetings-mock-3",
+    "ContractId": "guest-registration-to-meetings-mock-3",
     "Name": "GuestRegistrationToMeetings",
     "Enabled": true,
     "IntervalSeconds": 10,
