@@ -3,7 +3,13 @@
     "ContractId": "guest-registration-to-meetings-mock-3",
     "Name": "GuestRegistrationToMeetings",
     "Enabled": true,
-    "IntervalSeconds": 10,
+    "Schedule": {
+      "Mode": "Interval",
+      "Every": {
+        "Value": 10,
+        "Unit": "Seconds"
+      }
+    },
     "Source": {
       "Endpoint": "https://localhost:7278/get-random-guest-registration-full-name",
       "Method": "GET"
