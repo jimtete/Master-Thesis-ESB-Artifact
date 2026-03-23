@@ -7,7 +7,6 @@ public class RuntimeStateDbContext : DbContext
 {
     public RuntimeStateDbContext(DbContextOptions<RuntimeStateDbContext> options) : base(options)
     {
-        
     }
 
     public DbSet<ContractExecutionStateEntity> ContractExecutionStates => Set<ContractExecutionStateEntity>();
@@ -37,7 +36,12 @@ public class RuntimeStateDbContext : DbContext
             e.Property(x => x.BusinessKey).IsRequired();
             e.Property(x => x.PayloadHash).IsRequired();
 
+            e.Property(x => x.CanonicalSnapshot);
+            e.Property(x => x.PublishStatus).IsRequired().HasMaxLength(50);
+            e.Property(x => x.LastPublishError).HasMaxLength(2000);
+
             e.HasIndex(x => new { x.ContractId, x.BusinessKey }).IsUnique();
+            e.HasIndex(x => new { x.ContractId, x.PublishStatus });
         });
     }
 }

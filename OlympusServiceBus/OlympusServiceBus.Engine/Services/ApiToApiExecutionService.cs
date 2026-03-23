@@ -1,7 +1,6 @@
 using System.Text.Json.Nodes;
 using OlympusServiceBus.Engine.Execution.AntiContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
-using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.RuntimeState.Models;
 using OlympusServiceBus.RuntimeState.Services;
 using OlympusServiceBus.Utils.Contracts;
@@ -38,11 +37,6 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
     public async Task ExecuteAsync(ApiToApiContract contract, CancellationToken cancellationToken)
     {
-        JsonObject? sourcePayload = null;
-        JsonObject? transformedPayload = null;
-        JsonObject? responsePayload = null;
-        string businessKey = string.Empty;
-
         await _executionStateService.SaveAsync(new ContractExecutionStateEntity
         {
             ContractId = contract.ContractId,
@@ -58,6 +52,8 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
             if (execution is null || execution.SinkPayload is null)
             {
+                await FlushPendingAsync(contract, cancellationToken);
+
                 await _executionStateService.SaveAsync(new ContractExecutionStateEntity
                 {
                     ContractId = contract.ContractId,
@@ -70,75 +66,67 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 return;
             }
 
-            sourcePayload = execution.SourcePayload;
-            transformedPayload = execution.SinkPayload;
+            var businessKey = _businessKeyProvider.CreateKey(
+                execution.SinkPayload,
+                contract.BusinessKeyFields);
 
-            businessKey = _businessKeyProvider.CreateKey(transformedPayload, contract.BusinessKeyFields);
-            var payloadHash = _payloadHashProvider.ComputeHash(transformedPayload);
+            var payloadHash = _payloadHashProvider.ComputeHash(execution.SinkPayload);
+            var now = DateTimeOffset.UtcNow;
 
             var existingState = await _messageStateService.GetAsync(
                 contract.ContractId,
                 businessKey,
                 cancellationToken);
 
-            if (existingState is not null && existingState.PayloadHash == payloadHash)
+            if (existingState is null)
             {
-                existingState.LastSeenAt = DateTimeOffset.UtcNow;
-
-                await _messageStateService.SaveAsync(existingState, cancellationToken);
-
-                await _executionStateService.SaveAsync(new ContractExecutionStateEntity
+                await _messageStateService.SaveAsync(new ContractMessageStateEntity
                 {
                     ContractId = contract.ContractId,
                     ContractName = contract.Name,
-                    LastRunCompletedAt = DateTimeOffset.UtcNow,
-                    LastRunStatus = "DuplicateSkipped",
-                    UpdatedAt = DateTimeOffset.UtcNow
+                    BusinessKey = businessKey,
+                    PayloadHash = payloadHash,
+                    CanonicalSnapshot = execution.SinkPayload.ToJsonString(),
+                    FirstSeenAt = now,
+                    LastSeenAt = now,
+                    PublishStatus = "Pending",
+                    PublishAttemptCount = 0,
+                    LastPublishAttemptAt = null,
+                    LastPublishError = null,
+                    LastPublishedAt = null
                 }, cancellationToken);
+            }
+            else if (existingState.PayloadHash == payloadHash)
+            {
+                existingState.LastSeenAt = now;
+                await _messageStateService.SaveAsync(existingState, cancellationToken);
+            }
+            else
+            {
+                existingState.PayloadHash = payloadHash;
+                existingState.CanonicalSnapshot = execution.SinkPayload.ToJsonString();
+                existingState.LastSeenAt = now;
+                existingState.LastPublishedAt = null;
+                existingState.PublishStatus = "Pending";
+                existingState.PublishAttemptCount = 0;
+                existingState.LastPublishAttemptAt = null;
+                existingState.LastPublishError = null;
 
-                return;
+                await _messageStateService.SaveAsync(existingState, cancellationToken);
             }
 
-            responsePayload = await _executor.SendPayloadAsync(
-                contract,
-                transformedPayload,
-                cancellationToken);
-
-            var now = DateTimeOffset.UtcNow;
-
-            await _messageStateService.SaveAsync(new ContractMessageStateEntity
-            {
-                ContractId = contract.ContractId,
-                ContractName = contract.Name,
-                BusinessKey = businessKey,
-                PayloadHash = payloadHash,
-                CanonicalSnapshot = transformedPayload.ToJsonString(),
-                FirstSeenAt = existingState?.FirstSeenAt ?? now,
-                LastSeenAt = now,
-                LastPublishedAt = now
-            }, cancellationToken);
+            await FlushPendingAsync(contract, cancellationToken);
 
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
                 ContractId = contract.ContractId,
                 ContractName = contract.Name,
-                LastRunCompletedAt = now,
+                LastRunCompletedAt = DateTimeOffset.UtcNow,
                 LastRunStatus = "Completed",
-                UpdatedAt = now
+                UpdatedAt = DateTimeOffset.UtcNow
             }, cancellationToken);
-
-            await DispatchAntiContractsAsync(
-                contract,
-                businessKey,
-                sourcePayload,
-                transformedPayload,
-                responsePayload,
-                executionStatus: "Success",
-                errorMessage: null,
-                errorCode: null,
-                cancellationToken);
         }
-        catch (Exception ex)
+        catch
         {
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
@@ -149,18 +137,77 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 UpdatedAt = DateTimeOffset.UtcNow
             }, cancellationToken);
 
-            await DispatchAntiContractsAsync(
-                contract,
-                businessKey,
-                sourcePayload,
-                transformedPayload,
-                responsePayload,
-                executionStatus: "Failed",
-                errorMessage: ex.Message,
-                errorCode: "SINK_HTTP_FAILURE",
-                cancellationToken);
-
             throw;
+        }
+    }
+
+    public async Task FlushPendingAsync(ApiToApiContract contract, CancellationToken cancellationToken)
+    {
+        var pendingMessages = await _messageStateService.GetPendingAsync(
+            contract.ContractId,
+            cancellationToken);
+
+        foreach (var message in pendingMessages)
+        {
+            JsonObject? transformedPayload = null;
+            JsonObject? responsePayload = null;
+
+            try
+            {
+                if (string.IsNullOrWhiteSpace(message.CanonicalSnapshot))
+                    continue;
+
+                transformedPayload = JsonNode.Parse(message.CanonicalSnapshot) as JsonObject;
+                if (transformedPayload is null)
+                    continue;
+
+                message.PublishAttemptCount += 1;
+                message.LastPublishAttemptAt = DateTimeOffset.UtcNow;
+                message.LastPublishError = null;
+
+                responsePayload = await _executor.SendPayloadAsync(
+                    contract,
+                    transformedPayload,
+                    cancellationToken);
+
+                var now = DateTimeOffset.UtcNow;
+
+                message.LastPublishedAt = now;
+                message.LastSeenAt = now;
+                message.PublishStatus = "Published";
+                message.LastPublishError = null;
+
+                await _messageStateService.SaveAsync(message, cancellationToken);
+
+                await DispatchAntiContractsAsync(
+                    contract,
+                    message.BusinessKey,
+                    null,
+                    transformedPayload,
+                    responsePayload,
+                    "Success",
+                    null,
+                    null,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                message.PublishStatus = "Failed";
+                message.LastPublishError = ex.Message;
+
+                await _messageStateService.SaveAsync(message, cancellationToken);
+
+                await DispatchAntiContractsAsync(
+                    contract,
+                    message.BusinessKey,
+                    null,
+                    transformedPayload,
+                    responsePayload,
+                    "Failed",
+                    ex.Message,
+                    "SINK_HTTP_FAILURE",
+                    cancellationToken);
+            }
         }
     }
 
