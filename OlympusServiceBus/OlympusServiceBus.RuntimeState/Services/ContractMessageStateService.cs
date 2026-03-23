@@ -23,6 +23,15 @@ public class ContractMessageStateService : IContractMessageStateService
             cancellationToken);
     }
 
+    public Task<List<ContractMessageStateEntity>> GetPendingAsync(
+        string contractId,
+        CancellationToken cancellationToken = default)
+    {
+        return _repository.GetPendingByContractAsync(
+            contractId,
+            cancellationToken);
+    }
+
     public async Task SaveAsync(
         ContractMessageStateEntity entity,
         CancellationToken cancellationToken = default)
@@ -50,6 +59,14 @@ public class ContractMessageStateService : IContractMessageStateService
 
         if (entity.LastPublishedAt.HasValue)
             existing.LastPublishedAt = entity.LastPublishedAt;
+
+        existing.PublishStatus = entity.PublishStatus;
+        existing.PublishAttemptCount = entity.PublishAttemptCount;
+
+        if (entity.LastPublishAttemptAt.HasValue)
+            existing.LastPublishAttemptAt = entity.LastPublishAttemptAt;
+
+        existing.LastPublishError = entity.LastPublishError;
 
         await _repository.UpdateAsync(existing, cancellationToken);
     }

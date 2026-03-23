@@ -8,7 +8,11 @@ public interface IContractMessageStateService
         string contractId,
         string businessKey,
         CancellationToken cancellationToken = default);
-    
+
+    Task<List<ContractMessageStateEntity>> GetPendingAsync(
+        string contractId,
+        CancellationToken cancellationToken = default);
+
     Task SaveAsync(
         ContractMessageStateEntity entity,
         CancellationToken cancellationToken = default);
