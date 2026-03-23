@@ -1,3 +1,5 @@
+using OlympusServiceBus.Utils.Contracts.Scheduling;
+
 namespace OlympusServiceBus.Utils.Contracts;
 
 public abstract class ContractBase
@@ -11,4 +13,6 @@ public abstract class ContractBase
     public int IntervalSeconds { get; set; }
     
     public string[] BusinessKeyFields { get; set; } = [];
+
+    public ContractScheduleConfiguration? Schedule { get; set; }
 }

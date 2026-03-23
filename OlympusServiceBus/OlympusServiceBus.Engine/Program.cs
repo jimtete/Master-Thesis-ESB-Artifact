@@ -5,6 +5,7 @@ using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Helpers;
+using OlympusServiceBus.Engine.Scheduling;
 using OlympusServiceBus.Engine.Services;
 using OlympusServiceBus.Engine.Workers;
 using OlympusServiceBus.RuntimeState;
@@ -68,6 +69,7 @@ using (var scope = host.Services.CreateScope())
     var antiContractRegistry = scope.ServiceProvider.GetRequiredService<IAntiContractRegistry>();
 
     var contracts = loader.LoadAllContracts("Configuration");
+    ContractSchedulingBootstrapValidator.ValidateAll(contracts);
     registry.SetAllContracts(contracts);
 
     var antiContracts = loader.LoadAllAntiContracts("Configuration");
@@ -76,6 +78,7 @@ using (var scope = host.Services.CreateScope())
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
         .CreateLogger("Startup");
 
+    startupLogger.LogInformation("Forward contracts loaded at startup: {Count}", contracts.Count);
     startupLogger.LogInformation("Anti-contracts loaded at startup: {Count}", antiContracts.Count);
 }
 
