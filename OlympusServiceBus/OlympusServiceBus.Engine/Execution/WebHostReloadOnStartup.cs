@@ -1,38 +1,62 @@
 namespace OlympusServiceBus.Engine.Execution;
 
-public sealed class WebHostReloadOnStartup(
-    IHttpClientFactory httpClientFactory,
-    IConfiguration configuration,
-    ILogger<WebHostReloadOnStartup> logger) : IHostedService
+public sealed class WebHostReloadOnStartup : IHostedService
 {
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILogger<WebHostReloadOnStartup> _logger;
+
+    public WebHostReloadOnStartup(
+        IHttpClientFactory httpClientFactory,
+        ILogger<WebHostReloadOnStartup> logger)
+    {
+        _httpClientFactory = httpClientFactory;
+        _logger = logger;
+    }
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        var baseUrl = configuration["WebHost:BaseUrl"];
-
-        if (string.IsNullOrEmpty(baseUrl))
-        {
-            logger.LogWarning("WebHost:BaseUrl is missing in web.config");
-            return;
-        }
-        
-        var url = $"{baseUrl.TrimEnd('/')}/admin/reload";
+        const string reloadUrl = "http://localhost:5099/admin/reload";
 
         try
         {
-            var client = httpClientFactory.CreateClient();
-            using var resp = await client.PostAsync(url, content: null, cancellationToken);
-            resp.EnsureSuccessStatusCode();
+            var client = _httpClientFactory.CreateClient();
 
-            logger.LogInformation("Triggered WebHost reload on startup: {Url}", url);
+            using var response = await client.PostAsync(reloadUrl, content: null, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning(
+                    "WebHost reload endpoint responded with status code {StatusCode}: {Url}",
+                    (int)response.StatusCode,
+                    reloadUrl);
+
+                return;
+            }
+
+            _logger.LogInformation("WebHost reload triggered successfully: {Url}", reloadUrl);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "WebHost reload endpoint is unavailable. Continuing startup without reload: {Url}",
+                reloadUrl);
+        }
+        catch (TaskCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(
+                ex,
+                "WebHost reload timed out. Continuing startup without reload: {Url}",
+                reloadUrl);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to trigger WebHost reload on startup: {Url}", url);
+            _logger.LogWarning(
+                ex,
+                "Unexpected error while triggering WebHost reload. Continuing startup: {Url}",
+                reloadUrl);
         }
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
-    }
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -3,7 +3,7 @@ using OlympusServiceBus.Utils.Contracts.Scheduling;
 
 namespace OlympusServiceBus.Engine.Scheduling;
 
-public class ContractScheduleDueEvaluator
+public static class ContractScheduleDueEvaluator
 {
     public static bool IsDue(
         ResolvedContractSchedule schedule,
@@ -20,8 +20,7 @@ public class ContractScheduleDueEvaluator
 
             ContractScheduleMode.Interval => IsIntervalDue(schedule, executionState, nowUtc),
 
-            ContractScheduleMode.Recurring => throw new NotSupportedException(
-                "Recurring schedule evaluation is not implemented yet."),
+            ContractScheduleMode.Recurring => IsRecurringDue(schedule, executionState, nowUtc),
 
             _ => false,
         };
@@ -67,5 +66,30 @@ public class ContractScheduleDueEvaluator
         }
         
         return executionState?.LastRunStartedAt.Value.Add(schedule.Interval.Value) <= nowUtc;
+    }
+
+    private static bool IsRecurringDue(
+        ResolvedContractSchedule schedule,
+        ContractExecutionStateEntity? executionState,
+        DateTimeOffset? nowUtc)
+    {
+        if (string.IsNullOrWhiteSpace(schedule.CronExpression))
+        {
+            return false;
+        }
+        
+        var anchor = executionState?.LastRunStartedAt ?? DateTimeOffset.MinValue;
+
+        var nextOccurrence = RecurringScheduleOccurrenceCalculator.GetNextOccurrenceUtc(
+            schedule.CronExpression,
+            schedule.TimeZone,
+            anchor);
+
+        if (nextOccurrence is null)
+        {
+            return false;
+        }
+        
+        return nextOccurrence <= nowUtc;
     }
 }

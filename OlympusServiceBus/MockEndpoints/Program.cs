@@ -86,7 +86,7 @@ app.MapGet("/get-random-guest-registration-full-name", () =>
         var meetingDateTime = new DateTimeOffset(2026, 3, 7, 10, 0, 0, TimeSpan.Zero);
 
         return Results.Ok(new GuestRegistrationFullName(
-            FullName: "Dimitrios Tetepoulidis",
+            FullName: "Dimitrios Damascus",
             Email: "dimitrios.tetepoulidis@dtu.dk",
             RegisteredBy: "dte",
             MeetingDateTime: meetingDateTime,
