@@ -43,8 +43,22 @@ public class ApiToApiWorker(
                         executionState,
                         nowUtc);
 
+                    logger.LogDebug(
+                        "Contract {ContractId} schedule evaluated. Mode: {Mode}, IsDue: {IsDue}, LastRunStartedAt: {LastRunStartedAt}, LastRunCompletedAt: {LastRunCompletedAt}, LastRunStatus: {LastRunStatus}",
+                        contract.ContractId,
+                        resolvedSchedule.Mode,
+                        isDue,
+                        executionState?.LastRunStartedAt,
+                        executionState?.LastRunCompletedAt,
+                        executionState?.LastRunStatus);
+
                     if (!isDue)
                         continue;
+
+                    logger.LogInformation(
+                        "Contract {ContractId} is due for execution. Schedule mode: {Mode}",
+                        contract.ContractId,
+                        resolvedSchedule.Mode);
 
                     await executionService.ExecuteAsync(contract, stoppingToken);
                 }

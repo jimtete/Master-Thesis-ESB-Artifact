@@ -15,17 +15,13 @@ public static class ContractScheduleDueEvaluator
         return schedule.Mode switch
         {
             ContractScheduleMode.Manual => false,
-
             ContractScheduleMode.AdHoc => IsAdHocDue(schedule, executionState, nowUtc),
-
             ContractScheduleMode.Interval => IsIntervalDue(schedule, executionState, nowUtc),
-
             ContractScheduleMode.Recurring => IsRecurringDue(schedule, executionState, nowUtc),
-
             _ => false,
         };
     }
-    
+
     private static bool IsAdHocDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
@@ -49,11 +45,11 @@ public static class ContractScheduleDueEvaluator
 
         return true;
     }
-    
+
     private static bool IsIntervalDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
-        DateTimeOffset? nowUtc)
+        DateTimeOffset nowUtc)
     {
         if (schedule.Interval is null)
         {
@@ -64,20 +60,21 @@ public static class ContractScheduleDueEvaluator
         {
             return true;
         }
-        
-        return executionState?.LastRunStartedAt.Value.Add(schedule.Interval.Value) <= nowUtc;
+
+        var nextDue = executionState.LastRunStartedAt.Value.Add(schedule.Interval.Value);
+        return nextDue <= nowUtc;
     }
 
     private static bool IsRecurringDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
-        DateTimeOffset? nowUtc)
+        DateTimeOffset nowUtc)
     {
         if (string.IsNullOrWhiteSpace(schedule.CronExpression))
         {
             return false;
         }
-        
+
         var anchor = executionState?.LastRunStartedAt ?? DateTimeOffset.MinValue;
 
         var nextOccurrence = RecurringScheduleOccurrenceCalculator.GetNextOccurrenceUtc(
@@ -89,7 +86,7 @@ public static class ContractScheduleDueEvaluator
         {
             return false;
         }
-        
+
         return nextOccurrence <= nowUtc;
     }
 }

@@ -18,42 +18,48 @@ public static class ContractScheduleResolver
         {
             ContractScheduleMode.Manual => new ResolvedContractSchedule
             {
-                Mode = ContractScheduleMode.Manual,
+                Mode = ContractScheduleMode.Manual
             },
 
             ContractScheduleMode.AdHoc => new ResolvedContractSchedule
             {
                 Mode = ContractScheduleMode.AdHoc,
-                RunAtUtc = contract.Schedule.RunAt?.ToUniversalTime(),
+                RunAtUtc = contract.Schedule.RunAt?.ToUniversalTime()
             },
 
             ContractScheduleMode.Interval => new ResolvedContractSchedule
             {
                 Mode = ContractScheduleMode.Interval,
-                Interval = ResolveInterval(contract.Schedule.Every),
+                Interval = ResolveInterval(contract.Schedule.Every)
             },
 
             ContractScheduleMode.Recurring => new ResolvedContractSchedule
             {
                 Mode = ContractScheduleMode.Recurring,
-                CronExpression = contract.Schedule.CronExpression,
-                TimeZone = contract.Schedule.TimeZone,
+                CronExpression = ResolveCronExpression(contract),
+                TimeZone = ResolveTimeZone(contract.Schedule.TimeZone)
             },
-            
+
             _ => throw new InvalidOperationException(
                 $"Unsupported schedule mode '{contract.Schedule.Mode}' for contract '{contract.ContractId}'.")
         };
     }
-    
+
     private static ResolvedContractSchedule ResolveLegacySchedule(ContractBase contract)
     {
+        if (contract.IntervalSeconds <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Contract '{contract.ContractId}' must define IntervalSeconds > 0 when no Schedule is provided.");
+        }
+
         return new ResolvedContractSchedule
         {
             Mode = ContractScheduleMode.Interval,
             Interval = TimeSpan.FromSeconds(contract.IntervalSeconds)
         };
     }
-    
+
     private static TimeSpan ResolveInterval(ContractIntervalSchedule? interval)
     {
         if (interval is null)
@@ -74,5 +80,30 @@ public static class ContractScheduleResolver
             IntervalUnit.Days => TimeSpan.FromDays(interval.Value),
             _ => throw new InvalidOperationException($"Unsupported interval unit '{interval.Unit}'.")
         };
+    }
+
+    private static string ResolveCronExpression(ContractBase contract)
+    {
+        var cronExpression = contract.Schedule?.CronExpression?.Trim();
+
+        if (string.IsNullOrWhiteSpace(cronExpression))
+        {
+            throw new InvalidOperationException(
+                $"Contract '{contract.ContractId}' uses Recurring schedule and must define a non-empty CronExpression.");
+        }
+
+        return cronExpression;
+    }
+
+    private static string? ResolveTimeZone(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+        {
+            return null;
+        }
+
+        _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+
+        return timeZoneId;
     }
 }

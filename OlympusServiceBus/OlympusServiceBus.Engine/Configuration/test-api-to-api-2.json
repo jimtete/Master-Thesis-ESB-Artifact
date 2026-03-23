@@ -4,11 +4,9 @@
     "Name": "GuestRegistrationToMeetings",
     "Enabled": true,
     "Schedule": {
-      "Mode": "Interval",
-      "Every": {
-        "Value": 10,
-        "Unit": "Seconds"
-      }
+      "Mode": "Recurring",
+      "CronExpression": "*/1 * * * *",
+      "TimeZone": "Europe/Copenhagen"
     },
     "Source": {
       "Endpoint": "https://localhost:7278/get-random-guest-registration-full-name",
