@@ -28,12 +28,15 @@ public class ContractMessageStateRepository : IContractMessageStateRepository
         string contractId,
         CancellationToken cancellationToken = default)
     {
-        return await _dbContext.ContractMessageStates
+        var items = await _dbContext.ContractMessageStates
             .Where(x =>
                 x.ContractId == contractId &&
                 x.PublishStatus != "Published")
-            .OrderBy(x => x.FirstSeenAt)
             .ToListAsync(cancellationToken);
+
+        return items
+            .OrderBy(x => x.FirstSeenAt)
+            .ToList();
     }
 
     public async Task AddAsync(
