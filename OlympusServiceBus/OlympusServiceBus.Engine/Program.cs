@@ -15,8 +15,9 @@ using OlympusServiceBus.Utils;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-var runtimeStateDbPath = GetRuntimeStateDbPath();
-var contractsDirectoryPath = GetContractsDirectoryPath();
+var appDataDirectoryPath = GetOlympusAppDataDirectoryPath();
+var runtimeStateDbPath = GetRuntimeStateDbPath(appDataDirectoryPath);
+var contractsDirectoryPath = GetContractsDirectoryPath(appDataDirectoryPath);
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
@@ -87,18 +88,20 @@ using (var scope = host.Services.CreateScope())
 
 await host.RunAsync();
 
-static string GetRuntimeStateDbPath()
+static string GetOlympusAppDataDirectoryPath()
 {
     var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-    var appFolder = Path.Combine(appDataPath, "OlympusServiceBus");
-    return Path.Combine(appFolder, "runtime-state.db");
+    return Path.Combine(appDataPath, "OlympusServiceBus");
 }
 
-static string GetContractsDirectoryPath()
+static string GetRuntimeStateDbPath(string appDataDirectoryPath)
 {
-    var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-    var appFolder = Path.Combine(appDataPath, "OlympusServiceBus");
-    return Path.Combine(appFolder, "Contracts");
+    return Path.Combine(appDataDirectoryPath, "runtime-state.db");
+}
+
+static string GetContractsDirectoryPath(string appDataDirectoryPath)
+{
+    return Path.Combine(appDataDirectoryPath, "Contracts");
 }
 
 static void EnsureRuntimeStateDatabase(IHost host, string dbPath)
@@ -106,7 +109,9 @@ static void EnsureRuntimeStateDatabase(IHost host, string dbPath)
     var directory = Path.GetDirectoryName(dbPath);
 
     if (!string.IsNullOrWhiteSpace(directory))
+    {
         Directory.CreateDirectory(directory);
+    }
 
     using var scope = host.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<RuntimeStateDbContext>();
