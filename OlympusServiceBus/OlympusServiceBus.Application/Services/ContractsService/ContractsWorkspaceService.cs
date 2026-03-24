@@ -1,10 +1,15 @@
+using System;
 using System.IO;
+using System.Threading.Tasks;
 using OlympusServiceBusApplication.Services.AppSettingsService;
 
 namespace OlympusServiceBusApplication.Services.ContractsService;
 
-public class ContractsWorkspaceService : IContractsWorkspaceService
+public sealed class ContractsWorkspaceService : IContractsWorkspaceService
 {
+    private const string AppFolderName = "OlympusServiceBus";
+    private const string ContractsFolderName = "Contracts";
+
     private readonly IAppSettingsService _appSettingsService;
 
     public ContractsWorkspaceService(IAppSettingsService appSettingsService)
@@ -16,18 +21,24 @@ public class ContractsWorkspaceService : IContractsWorkspaceService
     {
         var settings = await _appSettingsService.LoadAsync();
 
+        var defaultRootDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            AppFolderName);
+
         if (string.IsNullOrWhiteSpace(settings.ContractRootDirectory))
         {
-            throw new InvalidOperationException("Contract root directory is not configured");
+            settings.ContractRootDirectory = defaultRootDirectory;
+            await _appSettingsService.SaveAsync(settings);
         }
 
-        var contractsDirectoryPath = Path.Combine(settings.ContractRootDirectory, "Contracts");
+        Directory.CreateDirectory(settings.ContractRootDirectory);
 
-        if (!Directory.Exists(contractsDirectoryPath))
-        {
-            Directory.CreateDirectory(contractsDirectoryPath);
-        }
-        
-        return contractsDirectoryPath;
+        var contractsDirectory = Path.Combine(
+            settings.ContractRootDirectory,
+            ContractsFolderName);
+
+        Directory.CreateDirectory(contractsDirectory);
+
+        return contractsDirectory;
     }
 }
