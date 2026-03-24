@@ -25,7 +25,7 @@ public partial class ConfiguratorWindow : Window
         await _viewModel.LoadAsync();
     }
 
-    private void TreeViewItem_Selected(object sender, RoutedEventArgs e)
+    private async void TreeViewItem_Selected(object sender, RoutedEventArgs e)
     {
         if (e.OriginalSource is not TreeViewItem treeViewItem)
         {
@@ -35,6 +35,25 @@ public partial class ConfiguratorWindow : Window
         if (treeViewItem.DataContext is FileExplorerNode selectedNode)
         {
             _viewModel.SelectedNode = selectedNode;
+            await _viewModel.HandleSelectedNodeChangedAsync();
+        }
+    }
+
+    private void ClearSelectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        _viewModel.ClearContractSelectionCommand.Execute(null);
+        ClearTreeViewSelection(ContractsTreeView);
+    }
+
+    private static void ClearTreeViewSelection(ItemsControl parent)
+    {
+        foreach (var item in parent.Items)
+        {
+            if (parent.ItemContainerGenerator.ContainerFromItem(item) is TreeViewItem treeViewItem)
+            {
+                treeViewItem.IsSelected = false;
+                ClearTreeViewSelection(treeViewItem);
+            }
         }
     }
 }

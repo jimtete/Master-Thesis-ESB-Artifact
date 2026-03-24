@@ -16,7 +16,9 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     private string _sinkEndpoint = string.Empty;
     private string _sinkMethod = "POST";
     private string _businessKeyField = "id";
-    
+    private bool _isEditMode;
+    private string? _selectedContractFilePath;
+
     public string Name
     {
         get => _name;
@@ -94,8 +96,35 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsEditMode
+    {
+        get => _isEditMode;
+        set
+        {
+            if (_isEditMode == value) return;
+            _isEditMode = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(FormTitle));
+            OnPropertyChanged(nameof(SaveButtonText));
+        }
+    }
+
+    public string? SelectedContractFilePath
+    {
+        get => _selectedContractFilePath;
+        set
+        {
+            if (_selectedContractFilePath == value) return;
+            _selectedContractFilePath = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string FormTitle => IsEditMode ? "Edit Contract" : "Create Contract";
+    public string SaveButtonText => IsEditMode ? "Save Contract" : "Create Contract";
+
     public ObservableCollection<ContractFieldMappingModel> Mappings { get; } = [];
-    
+
     public ICommand AddMappingCommand { get; }
     public ICommand RemoveMappingCommand { get; }
 
@@ -103,13 +132,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     {
         AddMappingCommand = new RelayCommand(AddMapping);
         RemoveMappingCommand = new RelayCommandT<ContractFieldMappingModel>(RemoveMapping);
-        
-        Mappings.Add(new ContractFieldMappingModel
-        {
-            SourceField = "id",
-            TargetField = "id",
-            Transformation = "Direct"
-        });
+
+        ResetToDefaults();
     }
 
     public CreateContractRequest BuildRequest()
@@ -126,7 +150,75 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             Mappings = Mappings.ToList(),
         };
     }
-    
+
+    public void LoadFromRequest(CreateContractRequest request, string? filePath = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        Name = request.Name;
+        ContractType = string.IsNullOrWhiteSpace(request.ContractType) ? "ApiToApi" : request.ContractType;
+        SourceEndpoint = request.SourceEndpoint;
+        SourceMethod = string.IsNullOrWhiteSpace(request.SourceMethod) ? "GET" : request.SourceMethod;
+        SinkEndpoint = request.SinkEndpoint;
+        SinkMethod = string.IsNullOrWhiteSpace(request.SinkMethod) ? "POST" : request.SinkMethod;
+        BusinessKeyField = string.IsNullOrWhiteSpace(request.BusinessKeyField) ? "id" : request.BusinessKeyField;
+
+        Mappings.Clear();
+
+        if (request.Mappings is { Count: > 0 })
+        {
+            foreach (var mapping in request.Mappings)
+            {
+                Mappings.Add(new ContractFieldMappingModel
+                {
+                    SourceField = mapping.SourceField,
+                    TargetField = mapping.TargetField,
+                    Transformation = string.IsNullOrWhiteSpace(mapping.Transformation)
+                        ? "Direct"
+                        : mapping.Transformation
+                });
+            }
+        }
+        else
+        {
+            Mappings.Add(new ContractFieldMappingModel
+            {
+                SourceField = "id",
+                TargetField = "id",
+                Transformation = "Direct"
+            });
+        }
+
+        SelectedContractFilePath = filePath;
+        IsEditMode = true;
+    }
+
+    public void Clear()
+    {
+        ResetToDefaults();
+        SelectedContractFilePath = null;
+        IsEditMode = false;
+    }
+
+    private void ResetToDefaults()
+    {
+        Name = string.Empty;
+        ContractType = "ApiToApi";
+        SourceEndpoint = string.Empty;
+        SourceMethod = "GET";
+        SinkEndpoint = string.Empty;
+        SinkMethod = "POST";
+        BusinessKeyField = "id";
+
+        Mappings.Clear();
+        Mappings.Add(new ContractFieldMappingModel
+        {
+            SourceField = "id",
+            TargetField = "id",
+            Transformation = "Direct"
+        });
+    }
+
     private void AddMapping()
     {
         Mappings.Add(new ContractFieldMappingModel
@@ -134,7 +226,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             Transformation = "Direct",
         });
     }
-    
+
     private void RemoveMapping(ContractFieldMappingModel? mapping)
     {
         if (mapping == null)
@@ -143,8 +235,16 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
 
         Mappings.Remove(mapping);
+
+        if (Mappings.Count == 0)
+        {
+            Mappings.Add(new ContractFieldMappingModel
+            {
+                Transformation = "Direct"
+            });
+        }
     }
-    
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
