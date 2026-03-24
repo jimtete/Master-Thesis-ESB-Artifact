@@ -57,8 +57,6 @@
                         <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="8" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -80,32 +78,14 @@
                                 Command="{Binding CreateDirectoryCommand}" />
                     </Grid>
 
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="140" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBox Grid.Column="0"
-                                 Text="{Binding NewContractName, UpdateSourceTrigger=PropertyChanged}"
-                                 MinHeight="30"
-                                 VerticalContentAlignment="Center" />
-
-                        <Button Grid.Column="2"
-                                Content="Create Contract"
-                                MinHeight="30"
-                                Command="{Binding CreateContractCommand}" />
-                    </Grid>
-
-                    <Button Grid.Row="4"
+                    <Button Grid.Row="2"
                             Content="Refresh"
                             Width="140"
                             HorizontalAlignment="Left"
                             MinHeight="30"
                             Command="{Binding RefreshCommand}" />
 
-                    <Border Grid.Row="6"
+                    <Border Grid.Row="4"
                             BorderBrush="#D0D0D0"
                             BorderThickness="1"
                             CornerRadius="4"
@@ -116,10 +96,161 @@
                 </Grid>
             </GroupBox>
 
-            <GroupBox Grid.Column="2" Header="Details">
-                <Grid Margin="8">
-                    <TextBlock Text="Details/editor area will come later." />
-                </Grid>
+            <GroupBox Grid.Column="2" Header="Contract Creator">
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <Grid Margin="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="180"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Contract Name:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.Name, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Contract Type:"/>
+                            <ComboBox Grid.Column="3"
+                                      SelectedValue="{Binding ContractCreator.ContractType, UpdateSourceTrigger=PropertyChanged}"
+                                      SelectedValuePath="Content">
+                                <ComboBoxItem Content="ApiToApi"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Source Endpoint:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SourceEndpoint, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Method:"/>
+                            <TextBox Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SourceMethod, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <Grid Grid.Row="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Sink Endpoint:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SinkEndpoint, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Method:"/>
+                            <TextBox Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SinkMethod, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <Grid Grid.Row="6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="220"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Business Key Field:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.BusinessKeyField, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <GroupBox Grid.Row="8" Header="Mappings">
+                            <DockPanel Margin="8">
+                                <Button DockPanel.Dock="Top"
+                                        Width="120"
+                                        Height="30"
+                                        Margin="0,0,0,8"
+                                        HorizontalAlignment="Left"
+                                        Content="Add Mapping"
+                                        Command="{Binding ContractCreator.AddMappingCommand}"/>
+
+                                <DataGrid ItemsSource="{Binding ContractCreator.Mappings}"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          IsReadOnly="False"
+                                          MinHeight="240">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Source Field"
+                                                            Binding="{Binding SourceField, UpdateSourceTrigger=PropertyChanged}"
+                                                            Width="*"/>
+                                        <DataGridTextColumn Header="Target Field"
+                                                            Binding="{Binding TargetField, UpdateSourceTrigger=PropertyChanged}"
+                                                            Width="*"/>
+                                        <DataGridTextColumn Header="Transformation"
+                                                            Binding="{Binding Transformation, UpdateSourceTrigger=PropertyChanged}"
+                                                            Width="150"/>
+                                        <DataGridTemplateColumn Header="Actions" Width="110">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="Remove"
+                                                            Command="{Binding DataContext.ContractCreator.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </DockPanel>
+                        </GroupBox>
+
+                        <StackPanel Grid.Row="10"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,12,0,0">
+                            <Button Width="140"
+                                    Height="32"
+                                    Content="Create Contract"
+                                    Command="{Binding CreateContractCommand}" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
             </GroupBox>
         </Grid>
 

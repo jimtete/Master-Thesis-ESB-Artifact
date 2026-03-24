@@ -114,6 +114,8 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     public ICommand CreateContractCommand { get; }
     public ICommand RefreshCommand { get; }
 
+    public ContractCreatorViewModel ContractCreator { get; }
+
     public ConfiguratorViewModel(
         IContractsWorkspaceService contractsWorkspaceService,
         IContractsExplorerService contractsExplorerService)
@@ -124,6 +126,8 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         CreateDirectoryCommand = new AsyncRelayCommand(CreateDirectoryAsync);
         CreateContractCommand = new AsyncRelayCommand(CreateContractAsync);
         RefreshCommand = new AsyncRelayCommand(ReloadTreeAsync);
+
+        ContractCreator = new ContractCreatorViewModel();
     }
 
     public async Task LoadAsync()
@@ -154,7 +158,9 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
     private async Task CreateContractAsync()
     {
-        if (string.IsNullOrWhiteSpace(NewContractName))
+        var request = ContractCreator.BuildRequest();
+
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
             StatusMessage = "Please enter a contract name.";
             return;
@@ -162,10 +168,9 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
         var parentPath = ResolveTargetDirectoryPath();
 
-        await _contractsExplorerService.CreateContractFileAsync(parentPath, NewContractName);
-        var createdContractName = NewContractName.Trim();
+        await _contractsExplorerService.CreateContractFileAsync(parentPath, request);
+        var createdContractName = request.Name;
 
-        NewContractName = string.Empty;
         await ReloadTreeAsync();
 
         StatusMessage = $"Contract '{createdContractName}' created successfully.";
