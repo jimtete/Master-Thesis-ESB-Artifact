@@ -37,7 +37,7 @@ public static class PortToApiPayloadBuilder
 
     private static void ApplyDirect(JsonObject inbound, JsonObject outbound, ApiFieldConfig m, List<string> errors)
     {
-        if (string.IsNullOrWhiteSpace(m.SourceFieldName) || string.IsNullOrWhiteSpace(m.SinkFieldName))
+        if (m.SourceFieldName.IsEmpty || m.SinkFieldName.IsEmpty)
         {
             errors.Add("Direct requires SourceFieldName and SinkFieldName.");
             return;
@@ -45,16 +45,16 @@ public static class PortToApiPayloadBuilder
 
         if (!TryGetCaseInsensitive(inbound, m.SourceFieldName, out var value) || value is null)
         {
-            errors.Add($"Direct missing source field: {m.SourceFieldName}");
+            errors.Add($"Direct missing source field: {m.SourceFieldName.Value}");
             return;
         }
 
-        outbound[m.SinkFieldName] = value.DeepClone();
+        outbound[m.SinkFieldName.Value!] = value.DeepClone();
     }
 
     private static void ApplySplit(JsonObject inbound, JsonObject outbound, ApiFieldConfig m, List<string> errors)
     {
-        if (string.IsNullOrWhiteSpace(m.SourceFieldName) || m.SinkFields is null || m.SinkFields.Length == 0)
+        if (m.SourceFieldName.IsEmpty || m.SinkFields is null || m.SinkFields.Length == 0)
         {
             errors.Add("Split requires SourceFieldName and SinkFields.");
             return;
@@ -64,14 +64,14 @@ public static class PortToApiPayloadBuilder
 
         if (!TryGetCaseInsensitive(inbound, m.SourceFieldName, out var value) || value is null)
         {
-            errors.Add($"Split missing source field: {m.SourceFieldName}");
+            errors.Add($"Split missing source field: {m.SourceFieldName.Value}");
             return;
         }
 
         var str = value.GetValue<string?>();
         if (string.IsNullOrWhiteSpace(str))
         {
-            errors.Add($"Split source is empty/not string: {m.SourceFieldName}");
+            errors.Add($"Split source is empty/not string: {m.SourceFieldName.Value}");
             return;
         }
 
@@ -80,35 +80,38 @@ public static class PortToApiPayloadBuilder
         for (var i = 0; i < m.SinkFields.Length; i++)
         {
             var sinkField = m.SinkFields[i];
-            if (string.IsNullOrWhiteSpace(sinkField)) continue;
+            if (sinkField.IsEmpty) continue;
 
             if (i < parts.Length)
             {
-                // If there are extra parts, put the remainder into the last sink field.
                 if (i == m.SinkFields.Length - 1 && parts.Length > m.SinkFields.Length)
-                    outbound[sinkField] = string.Join(sep, parts.Skip(i));
+                    outbound[sinkField.Value!] = string.Join(sep, parts.Skip(i));
                 else
-                    outbound[sinkField] = parts[i];
+                    outbound[sinkField.Value!] = parts[i];
             }
             else
             {
-                outbound[sinkField] = null;
+                outbound[sinkField.Value!] = null;
             }
         }
     }
 
-    private static bool TryGetCaseInsensitive(JsonObject obj, string key, out JsonNode? value)
+    private static bool TryGetCaseInsensitive(JsonObject obj, SourceField key, out JsonNode? value)
     {
+        value = null;
+
+        if (key.IsEmpty || key.Value is null)
+            return false;
+
         foreach (var kv in obj)
         {
-            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(kv.Key, key.Value, StringComparison.OrdinalIgnoreCase))
             {
                 value = kv.Value;
                 return true;
             }
         }
 
-        value = null;
         return false;
     }
 }

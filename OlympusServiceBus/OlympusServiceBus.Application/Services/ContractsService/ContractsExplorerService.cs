@@ -103,46 +103,34 @@ public class ContractsExplorerService : IContractsExplorerService
     {
         var contractId = Path.GetFileNameWithoutExtension(filePath);
 
-        var businessKeyField = string.IsNullOrWhiteSpace(request.BusinessKeyField)
-            ? "id"
-            : request.BusinessKeyField.Trim();
+        var businessKeyFields = string.IsNullOrWhiteSpace(request.BusinessKeyField)
+            ? new[] { "id" }
+            : request.BusinessKeyField
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+
+        if (businessKeyFields.Length == 0)
+        {
+            businessKeyFields = new[] { "id" };
+        }
 
         var mappings = request.Mappings is { Count: > 0 }
             ? request.Mappings
-                .Where(x =>
-                    x.SourceFields is { Count: > 0 } &&
-                    x.TargetFields is { Count: > 0 })
-                .Select(x => new
-                {
-                    SourceFields = x.SourceFields
-                        .Where(static s => !string.IsNullOrWhiteSpace(s))
-                        .Select(s => s.Trim())
-                        .ToArray(),
-
-                    TargetFields = x.TargetFields
-                        .Where(static s => !string.IsNullOrWhiteSpace(s))
-                        .Select(s => s.Trim())
-                        .ToArray(),
-
-                    Transformation = string.IsNullOrWhiteSpace(x.Transformation)
-                        ? "Direct"
-                        : x.Transformation.Trim(),
-
-                    Separator = x.Separator ?? " "
-                })
-                .Where(x => x.SourceFields.Length > 0 && x.TargetFields.Length > 0)
+                .Select(BuildApiFieldMapping)
+                .Where(static x => x is not null)
                 .ToArray()
-            : [];
+            : Array.Empty<object>();
 
         var effectiveMappings = mappings.Length > 0
             ? mappings
-            : new[]
+            : new object[]
             {
                 new
                 {
-                    SourceFields = new[] { "id" },
-                    TargetFields = new[] { "id" },
-                    Transformation = "Direct",
+                    SourceFieldName = "id",
+                    SinkFieldName = "id",
+                    TransformationType = "Direct",
                     Separator = " "
                 }
             };
@@ -171,7 +159,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 Name = request.Name.Trim(),
                 Enabled = true,
                 ContractType = "ApiToApi",
-                BusinessKeyFields = new[] { businessKeyField },
+                BusinessKeyFields = businessKeyFields,
                 Schedule = new
                 {
                     Mode = "AdHoc",
@@ -222,5 +210,56 @@ public class ContractsExplorerService : IContractsExplorerService
         }
 
         return node;
+    }
+    
+    private static object? BuildApiFieldMapping(ContractFieldMappingModel mapping)
+    {
+        var transformationType = string.IsNullOrWhiteSpace(mapping.Transformation)
+            ? "Direct"
+            : mapping.Transformation.Trim();
+
+        var sourceFields = (mapping.SourceFields ?? [])
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .Select(static x => x.Trim())
+            .ToArray();
+
+        var targetFields = (mapping.TargetFields ?? [])
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .SelectMany(static x => x.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .ToArray();
+
+        var separator = string.IsNullOrWhiteSpace(mapping.Separator)
+            ? " "
+            : mapping.Separator;
+
+        return transformationType switch
+        {
+            "Direct" when sourceFields.Length > 0 && targetFields.Length > 0 => new
+            {
+                SourceFieldName = sourceFields[0],
+                SinkFieldName = targetFields[0],
+                TransformationType = "Direct",
+                Separator = separator
+            },
+
+            "Split" when sourceFields.Length > 0 && targetFields.Length > 0 => new
+            {
+                SourceFieldName = sourceFields[0],
+                SinkFields = targetFields,
+                TransformationType = "Split",
+                Separator = separator
+            },
+
+            "Join" when sourceFields.Length > 0 && targetFields.Length > 0 => new
+            {
+                SourceFields = sourceFields,
+                SinkFieldName = targetFields[0],
+                TransformationType = "Join",
+                Separator = separator
+            },
+
+            _ => null
+        };
     }
 }

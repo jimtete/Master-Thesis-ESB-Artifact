@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using OlympusServiceBus.Utils;
+using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.WebHost.Contracts;
@@ -12,7 +13,12 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
+        Converters =
+        {
+            new JsonStringEnumConverter(),
+            new SourceFieldJsonConverter(),
+            new SinkFieldJsonConverter()
+        }
     };
 
     public PortToApiContractLoader(ILogger<PortToApiContractLoader> logger)

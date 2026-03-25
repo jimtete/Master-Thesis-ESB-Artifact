@@ -44,7 +44,6 @@ public sealed class PortToApiInboundValidator
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Your current assumption: c.Mappings is ApiFieldConfig[]
         var mappings = c.Mappings ?? Array.Empty<ApiFieldConfig>();
 
         foreach (var m in mappings)
@@ -53,15 +52,19 @@ public sealed class PortToApiInboundValidator
             {
                 case TransformationType.Direct:
                 case TransformationType.Split:
-                    if (!string.IsNullOrWhiteSpace(m.SourceFieldName))
-                        set.Add(m.SourceFieldName);
+                    if (!m.SourceFieldName.IsEmpty && m.SourceFieldName.Value is not null)
+                        set.Add(m.SourceFieldName.Value);
                     break;
 
                 case TransformationType.Join:
                     if (m.SourceFields is { Length: > 0 })
+                    {
                         foreach (var sf in m.SourceFields)
-                            if (!string.IsNullOrWhiteSpace(sf))
-                                set.Add(sf);
+                        {
+                            if (!sf.IsEmpty && sf.Value is not null)
+                                set.Add(sf.Value);
+                        }
+                    }
                     break;
             }
         }

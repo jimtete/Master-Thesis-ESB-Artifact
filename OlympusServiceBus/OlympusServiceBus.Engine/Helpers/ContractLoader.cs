@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 using OlympusServiceBus.Utils.Contracts.AntiContracts;
 
@@ -12,7 +13,12 @@ public sealed class ContractLoader : IContractLoader
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
+        Converters =
+        {
+            new JsonStringEnumConverter(),
+            new SourceFieldJsonConverter(),
+            new SinkFieldJsonConverter()
+        }
     };
 
     public ContractLoader(ILogger<ContractLoader> logger)

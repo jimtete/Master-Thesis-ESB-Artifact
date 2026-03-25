@@ -290,10 +290,23 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         var businessKeyField = "id";
 
         if (apiToApiElement.TryGetProperty("BusinessKeyFields", out var businessKeyFieldsElement) &&
-            businessKeyFieldsElement.ValueKind == JsonValueKind.Array &&
-            businessKeyFieldsElement.GetArrayLength() > 0)
+            businessKeyFieldsElement.ValueKind == JsonValueKind.Array)
         {
-            businessKeyField = businessKeyFieldsElement[0].GetString() ?? "id";
+            var keys = new List<string>();
+
+            foreach (var item in businessKeyFieldsElement.EnumerateArray())
+            {
+                var value = item.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    keys.Add(value);
+                }
+            }
+
+            if (keys.Count > 0)
+            {
+                businessKeyField = string.Join(", ", keys);
+            }
         }
 
         var mappings = new List<ContractFieldMappingModel>();
@@ -303,7 +316,24 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         {
             foreach (var mappingElement in mappingsElement.EnumerateArray())
             {
+                var transformation = mappingElement.TryGetProperty("TransformationType", out var transformationTypeElement)
+                    ? transformationTypeElement.GetString() ?? "Direct"
+                    : (mappingElement.TryGetProperty("Transformation", out var legacyTransformationElement)
+                        ? legacyTransformationElement.GetString() ?? "Direct"
+                        : "Direct");
+
                 var sourceFields = new List<string>();
+                var targetFields = new List<string>();
+
+                if (mappingElement.TryGetProperty("SourceFieldName", out var sourceFieldNameElement))
+                {
+                    var value = sourceFieldNameElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        sourceFields.Add(value);
+                    }
+                }
+
                 if (mappingElement.TryGetProperty("SourceFields", out var sourceFieldsElement) &&
                     sourceFieldsElement.ValueKind == JsonValueKind.Array)
                 {
@@ -317,7 +347,35 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
                     }
                 }
 
-                var targetFields = new List<string>();
+                if (mappingElement.TryGetProperty("SinkFieldName", out var sinkFieldNameElement))
+                {
+                    var value = sinkFieldNameElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        targetFields.Add(value);
+                    }
+                }
+
+                if (mappingElement.TryGetProperty("SinkFields", out var sinkFieldsElement) &&
+                    sinkFieldsElement.ValueKind == JsonValueKind.Array)
+                {
+                    var sinkValues = new List<string>();
+
+                    foreach (var item in sinkFieldsElement.EnumerateArray())
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            sinkValues.Add(value);
+                        }
+                    }
+
+                    if (sinkValues.Count > 0)
+                    {
+                        targetFields.Add(string.Join(";", sinkValues));
+                    }
+                }
+
                 if (mappingElement.TryGetProperty("TargetFields", out var targetFieldsElement) &&
                     targetFieldsElement.ValueKind == JsonValueKind.Array)
                 {
@@ -335,9 +393,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
                 {
                     SourceFields = sourceFields,
                     TargetFields = targetFields,
-                    Transformation = mappingElement.TryGetProperty("Transformation", out var transformationElement)
-                        ? transformationElement.GetString() ?? "Direct"
-                        : "Direct",
+                    Transformation = transformation,
                     Separator = mappingElement.TryGetProperty("Separator", out var separatorElement)
                         ? separatorElement.GetString() ?? " "
                         : " "
