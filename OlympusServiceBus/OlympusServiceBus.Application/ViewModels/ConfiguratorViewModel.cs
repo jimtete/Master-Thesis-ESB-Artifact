@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Windows.Input;
 using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models;
+using OlympusServiceBusApplication.Models.Contracts;
 using OlympusServiceBusApplication.Services.ContractsService;
 
 namespace OlympusServiceBusApplication.ViewModels;
@@ -17,7 +19,6 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     private FileExplorerNode? _rootNode;
     private FileExplorerNode? _selectedNode;
     private string _newDirectoryName = string.Empty;
-    private string _newContractName = string.Empty;
     private string _statusMessage = "Ready.";
 
     public string ContractsDirectoryPath
@@ -80,21 +81,6 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
     }
 
-    public string NewContractName
-    {
-        get => _newContractName;
-        set
-        {
-            if (_newContractName == value)
-            {
-                return;
-            }
-
-            _newContractName = value;
-            OnPropertyChanged();
-        }
-    }
-
     public string StatusMessage
     {
         get => _statusMessage;
@@ -113,6 +99,9 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     public ICommand CreateDirectoryCommand { get; }
     public ICommand CreateContractCommand { get; }
     public ICommand RefreshCommand { get; }
+    public ICommand ClearContractSelectionCommand { get; }
+
+    public ContractCreatorViewModel ContractCreator { get; }
 
     public ConfiguratorViewModel(
         IContractsWorkspaceService contractsWorkspaceService,
@@ -124,6 +113,9 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         CreateDirectoryCommand = new AsyncRelayCommand(CreateDirectoryAsync);
         CreateContractCommand = new AsyncRelayCommand(CreateContractAsync);
         RefreshCommand = new AsyncRelayCommand(ReloadTreeAsync);
+        ClearContractSelectionCommand = new RelayCommand(ClearContractSelection);
+
+        ContractCreator = new ContractCreatorViewModel();
     }
 
     public async Task LoadAsync()
@@ -154,21 +146,72 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
     private async Task CreateContractAsync()
     {
-        if (string.IsNullOrWhiteSpace(NewContractName))
+        var request = ContractCreator.BuildRequest();
+
+        if (string.IsNullOrWhiteSpace(request.Name))
         {
             StatusMessage = "Please enter a contract name.";
             return;
         }
 
         var parentPath = ResolveTargetDirectoryPath();
+        var previousFilePath = ContractCreator.SelectedContractFilePath;
 
-        await _contractsExplorerService.CreateContractFileAsync(parentPath, NewContractName);
-        var createdContractName = NewContractName.Trim();
+        await _contractsExplorerService.CreateContractFileAsync(
+            parentPath,
+            request,
+            previousFilePath);
 
-        NewContractName = string.Empty;
+        var createdOrUpdatedContractName = request.Name.Trim();
+        var newFilePath = Path.Combine(parentPath, $"{createdOrUpdatedContractName}.json");
+
         await ReloadTreeAsync();
 
-        StatusMessage = $"Contract '{createdContractName}' created successfully.";
+        ContractCreator.SelectedContractFilePath = newFilePath;
+        ContractCreator.IsEditMode = true;
+
+        StatusMessage = previousFilePath is not null
+            ? $"Contract '{createdOrUpdatedContractName}' saved successfully."
+            : $"Contract '{createdOrUpdatedContractName}' created successfully.";
+    }
+
+    public async Task HandleSelectedNodeChangedAsync()
+    {
+        if (SelectedNode is null || SelectedNode.IsDirectory)
+        {
+            return;
+        }
+
+        if (!File.Exists(SelectedNode.FullPath))
+        {
+            StatusMessage = $"Selected contract file was not found: {SelectedNode.FullPath}";
+            return;
+        }
+
+        try
+        {
+            var request = await TryLoadContractRequestAsync(SelectedNode.FullPath);
+
+            if (request is null)
+            {
+                StatusMessage = $"Selected file '{SelectedNode.Name}' is not a supported editable contract.";
+                return;
+            }
+
+            ContractCreator.LoadFromRequest(request, SelectedNode.FullPath);
+            StatusMessage = $"Loaded contract '{request.Name}' for editing.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to load contract '{SelectedNode.Name}': {ex.Message}";
+        }
+    }
+
+    private void ClearContractSelection()
+    {
+        SelectedNode = null;
+        ContractCreator.Clear();
+        StatusMessage = "Contract selection cleared. Ready to create a new contract.";
     }
 
     private async Task ReloadTreeAsync()
@@ -186,6 +229,189 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         return SelectedNode.IsDirectory
             ? SelectedNode.FullPath
             : Path.GetDirectoryName(SelectedNode.FullPath) ?? ContractsDirectoryPath;
+    }
+
+    private static async Task<CreateContractRequest?> TryLoadContractRequestAsync(string filePath)
+    {
+        var json = await File.ReadAllTextAsync(filePath);
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(json);
+
+        if (!document.RootElement.TryGetProperty("ApiToApi", out var apiToApiElement))
+        {
+            return null;
+        }
+
+        var name = apiToApiElement.TryGetProperty("Name", out var nameElement)
+            ? nameElement.GetString() ?? string.Empty
+            : string.Empty;
+
+        var contractType = apiToApiElement.TryGetProperty("ContractType", out var contractTypeElement)
+            ? contractTypeElement.GetString() ?? "ApiToApi"
+            : "ApiToApi";
+
+        var sourceEndpoint = string.Empty;
+        var sourceMethod = "GET";
+
+        if (apiToApiElement.TryGetProperty("Source", out var sourceElement))
+        {
+            if (sourceElement.TryGetProperty("Endpoint", out var endpointElement))
+            {
+                sourceEndpoint = endpointElement.GetString() ?? string.Empty;
+            }
+
+            if (sourceElement.TryGetProperty("Method", out var methodElement))
+            {
+                sourceMethod = methodElement.GetString() ?? "GET";
+            }
+        }
+
+        var sinkEndpoint = string.Empty;
+        var sinkMethod = "POST";
+
+        if (apiToApiElement.TryGetProperty("Sink", out var sinkElement))
+        {
+            if (sinkElement.TryGetProperty("Endpoint", out var endpointElement))
+            {
+                sinkEndpoint = endpointElement.GetString() ?? string.Empty;
+            }
+
+            if (sinkElement.TryGetProperty("Method", out var methodElement))
+            {
+                sinkMethod = methodElement.GetString() ?? "POST";
+            }
+        }
+
+        var businessKeyField = "id";
+
+        if (apiToApiElement.TryGetProperty("BusinessKeyFields", out var businessKeyFieldsElement) &&
+            businessKeyFieldsElement.ValueKind == JsonValueKind.Array)
+        {
+            var keys = new List<string>();
+
+            foreach (var item in businessKeyFieldsElement.EnumerateArray())
+            {
+                var value = item.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    keys.Add(value);
+                }
+            }
+
+            if (keys.Count > 0)
+            {
+                businessKeyField = string.Join(", ", keys);
+            }
+        }
+
+        var mappings = new List<ContractFieldMappingModel>();
+
+        if (apiToApiElement.TryGetProperty("Mappings", out var mappingsElement) &&
+            mappingsElement.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var mappingElement in mappingsElement.EnumerateArray())
+            {
+                var transformation = mappingElement.TryGetProperty("TransformationType", out var transformationTypeElement)
+                    ? transformationTypeElement.GetString() ?? "Direct"
+                    : (mappingElement.TryGetProperty("Transformation", out var legacyTransformationElement)
+                        ? legacyTransformationElement.GetString() ?? "Direct"
+                        : "Direct");
+
+                var sourceFields = new List<string>();
+                var targetFields = new List<string>();
+
+                if (mappingElement.TryGetProperty("SourceFieldName", out var sourceFieldNameElement))
+                {
+                    var value = sourceFieldNameElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        sourceFields.Add(value);
+                    }
+                }
+
+                if (mappingElement.TryGetProperty("SourceFields", out var sourceFieldsElement) &&
+                    sourceFieldsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in sourceFieldsElement.EnumerateArray())
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            sourceFields.Add(value);
+                        }
+                    }
+                }
+
+                if (mappingElement.TryGetProperty("SinkFieldName", out var sinkFieldNameElement))
+                {
+                    var value = sinkFieldNameElement.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        targetFields.Add(value);
+                    }
+                }
+
+                if (mappingElement.TryGetProperty("SinkFields", out var sinkFieldsElement) &&
+                    sinkFieldsElement.ValueKind == JsonValueKind.Array)
+                {
+                    var sinkValues = new List<string>();
+
+                    foreach (var item in sinkFieldsElement.EnumerateArray())
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            sinkValues.Add(value);
+                        }
+                    }
+
+                    if (sinkValues.Count > 0)
+                    {
+                        targetFields.Add(string.Join(";", sinkValues));
+                    }
+                }
+
+                if (mappingElement.TryGetProperty("TargetFields", out var targetFieldsElement) &&
+                    targetFieldsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in targetFieldsElement.EnumerateArray())
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            targetFields.Add(value);
+                        }
+                    }
+                }
+
+                mappings.Add(new ContractFieldMappingModel
+                {
+                    SourceFields = sourceFields,
+                    TargetFields = targetFields,
+                    Transformation = transformation,
+                    Separator = mappingElement.TryGetProperty("Separator", out var separatorElement)
+                        ? separatorElement.GetString() ?? " "
+                        : " "
+                });
+            }
+        }
+
+        return new CreateContractRequest
+        {
+            Name = name,
+            ContractType = contractType,
+            SourceEndpoint = sourceEndpoint,
+            SourceMethod = sourceMethod,
+            SinkEndpoint = sinkEndpoint,
+            SinkMethod = sinkMethod,
+            BusinessKeyField = businessKeyField,
+            Mappings = mappings
+        };
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
