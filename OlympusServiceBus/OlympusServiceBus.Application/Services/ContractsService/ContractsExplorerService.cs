@@ -52,7 +52,7 @@ public class ContractsExplorerService : IContractsExplorerService
         await Task.Run(() => Directory.CreateDirectory(targetDirectoryPath));
     }
 
-    public async Task CreateContractFileAsync(string parentPath, CreateContractRequest request)
+    public async Task CreateContractFileAsync(string parentPath, CreateContractRequest request, string? existingFilePath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(parentPath);
         ArgumentNullException.ThrowIfNull(request);
@@ -68,15 +68,17 @@ public class ContractsExplorerService : IContractsExplorerService
         }
 
         var normalizedFileName = NormalizeContractFileName(request.Name);
-        var filePath = Path.Combine(parentPath, normalizedFileName);
+        var targetFilePath = Path.Combine(parentPath, normalizedFileName);
 
-        if (File.Exists(filePath))
+        var json = BuildContractJson(request, targetFilePath);
+        await File.WriteAllTextAsync(targetFilePath, json);
+
+        if (!string.IsNullOrWhiteSpace(existingFilePath) &&
+            !string.Equals(existingFilePath, targetFilePath, StringComparison.OrdinalIgnoreCase) &&
+            File.Exists(existingFilePath))
         {
-            return;
+            File.Delete(existingFilePath);
         }
-
-        var json = BuildContractJson(request, filePath);
-        await File.WriteAllTextAsync(filePath, json);
     }
 
     private static string NormalizeContractFileName(string contractName)
@@ -108,16 +110,27 @@ public class ContractsExplorerService : IContractsExplorerService
         var mappings = request.Mappings is { Count: > 0 }
             ? request.Mappings
                 .Where(x =>
-                    !string.IsNullOrWhiteSpace(x.SourceField) &&
-                    !string.IsNullOrWhiteSpace(x.TargetField))
+                    x.SourceFields is { Count: > 0 } &&
+                    x.TargetFields is { Count: > 0 })
                 .Select(x => new
                 {
-                    SourceField = x.SourceField.Trim(),
-                    TargetField = x.TargetField.Trim(),
+                    SourceFields = x.SourceFields
+                        .Where(static s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .ToArray(),
+
+                    TargetFields = x.TargetFields
+                        .Where(static s => !string.IsNullOrWhiteSpace(s))
+                        .Select(s => s.Trim())
+                        .ToArray(),
+
                     Transformation = string.IsNullOrWhiteSpace(x.Transformation)
                         ? "Direct"
-                        : x.Transformation.Trim()
+                        : x.Transformation.Trim(),
+
+                    Separator = x.Separator ?? " "
                 })
+                .Where(x => x.SourceFields.Length > 0 && x.TargetFields.Length > 0)
                 .ToArray()
             : [];
 
@@ -127,9 +140,10 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 new
                 {
-                    SourceField = "id",
-                    TargetField = "id",
-                    Transformation = "Direct"
+                    SourceFields = new[] { "id" },
+                    TargetFields = new[] { "id" },
+                    Transformation = "Direct",
+                    Separator = " "
                 }
             };
 

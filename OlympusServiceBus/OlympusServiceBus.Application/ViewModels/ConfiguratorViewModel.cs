@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Windows.Input;
 using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models;
@@ -154,14 +155,22 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
 
         var parentPath = ResolveTargetDirectoryPath();
+        var previousFilePath = ContractCreator.SelectedContractFilePath;
 
-        await _contractsExplorerService.CreateContractFileAsync(parentPath, request);
+        await _contractsExplorerService.CreateContractFileAsync(
+            parentPath,
+            request,
+            previousFilePath);
 
-        var createdOrUpdatedContractName = request.Name;
+        var createdOrUpdatedContractName = request.Name.Trim();
+        var newFilePath = Path.Combine(parentPath, $"{createdOrUpdatedContractName}.json");
 
         await ReloadTreeAsync();
 
-        StatusMessage = ContractCreator.IsEditMode
+        ContractCreator.SelectedContractFilePath = newFilePath;
+        ContractCreator.IsEditMode = true;
+
+        StatusMessage = previousFilePath is not null
             ? $"Contract '{createdOrUpdatedContractName}' saved successfully."
             : $"Contract '{createdOrUpdatedContractName}' created successfully.";
     }
@@ -231,7 +240,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return null;
         }
 
-        var document = System.Text.Json.JsonDocument.Parse(json);
+        using var document = JsonDocument.Parse(json);
 
         if (!document.RootElement.TryGetProperty("ApiToApi", out var apiToApiElement))
         {
@@ -281,7 +290,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         var businessKeyField = "id";
 
         if (apiToApiElement.TryGetProperty("BusinessKeyFields", out var businessKeyFieldsElement) &&
-            businessKeyFieldsElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+            businessKeyFieldsElement.ValueKind == JsonValueKind.Array &&
             businessKeyFieldsElement.GetArrayLength() > 0)
         {
             businessKeyField = businessKeyFieldsElement[0].GetString() ?? "id";
@@ -290,21 +299,48 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         var mappings = new List<ContractFieldMappingModel>();
 
         if (apiToApiElement.TryGetProperty("Mappings", out var mappingsElement) &&
-            mappingsElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+            mappingsElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var mappingElement in mappingsElement.EnumerateArray())
             {
+                var sourceFields = new List<string>();
+                if (mappingElement.TryGetProperty("SourceFields", out var sourceFieldsElement) &&
+                    sourceFieldsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in sourceFieldsElement.EnumerateArray())
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            sourceFields.Add(value);
+                        }
+                    }
+                }
+
+                var targetFields = new List<string>();
+                if (mappingElement.TryGetProperty("TargetFields", out var targetFieldsElement) &&
+                    targetFieldsElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in targetFieldsElement.EnumerateArray())
+                    {
+                        var value = item.GetString();
+                        if (!string.IsNullOrWhiteSpace(value))
+                        {
+                            targetFields.Add(value);
+                        }
+                    }
+                }
+
                 mappings.Add(new ContractFieldMappingModel
                 {
-                    SourceField = mappingElement.TryGetProperty("SourceField", out var sourceFieldElement)
-                        ? sourceFieldElement.GetString() ?? string.Empty
-                        : string.Empty,
-                    TargetField = mappingElement.TryGetProperty("TargetField", out var targetFieldElement)
-                        ? targetFieldElement.GetString() ?? string.Empty
-                        : string.Empty,
+                    SourceFields = sourceFields,
+                    TargetFields = targetFields,
                     Transformation = mappingElement.TryGetProperty("Transformation", out var transformationElement)
                         ? transformationElement.GetString() ?? "Direct"
-                        : "Direct"
+                        : "Direct",
+                    Separator = mappingElement.TryGetProperty("Separator", out var separatorElement)
+                        ? separatorElement.GetString() ?? " "
+                        : " "
                 });
             }
         }

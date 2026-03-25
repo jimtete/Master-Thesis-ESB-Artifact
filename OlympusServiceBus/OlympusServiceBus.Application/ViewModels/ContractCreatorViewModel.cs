@@ -171,11 +171,14 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             {
                 Mappings.Add(new ContractFieldMappingModel
                 {
-                    SourceField = mapping.SourceField,
-                    TargetField = mapping.TargetField,
+                    SourceFields = mapping.SourceFields?.ToList() ?? [],
+                    TargetFields = mapping.TargetFields?.ToList() ?? [],
                     Transformation = string.IsNullOrWhiteSpace(mapping.Transformation)
                         ? "Direct"
-                        : mapping.Transformation
+                        : mapping.Transformation,
+                    Separator = string.IsNullOrWhiteSpace(mapping.Separator)
+                        ? " "
+                        : mapping.Separator
                 });
             }
         }
@@ -183,9 +186,10 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         {
             Mappings.Add(new ContractFieldMappingModel
             {
-                SourceField = "id",
-                TargetField = "id",
-                Transformation = "Direct"
+                SourceFields = ["id"],
+                TargetFields = ["id"],
+                Transformation = "Direct",
+                Separator = " "
             });
         }
 
@@ -213,9 +217,10 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         Mappings.Clear();
         Mappings.Add(new ContractFieldMappingModel
         {
-            SourceField = "id",
-            TargetField = "id",
-            Transformation = "Direct"
+            SourceFields = ["id"],
+            TargetFields = ["id"],
+            Transformation = "Direct",
+            Separator = " "
         });
     }
 
@@ -224,6 +229,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         Mappings.Add(new ContractFieldMappingModel
         {
             Transformation = "Direct",
+            Separator = " "
         });
     }
 
@@ -240,7 +246,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         {
             Mappings.Add(new ContractFieldMappingModel
             {
-                Transformation = "Direct"
+                Transformation = "Direct",
+                Separator = " "
             });
         }
     }

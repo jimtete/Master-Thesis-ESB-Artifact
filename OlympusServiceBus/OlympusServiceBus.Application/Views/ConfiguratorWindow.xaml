@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:models="clr-namespace:OlympusServiceBusApplication.Models"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="Olympus Service Bus Configurator"
         Height="800"
@@ -99,7 +100,15 @@
                             CornerRadius="4"
                             Padding="6">
                         <TreeView x:Name="ContractsTreeView"
-                                  ItemsSource="{Binding RootNode.Children}" />
+                                  ItemsSource="{Binding RootNode.Children}"
+                                  PreviewMouseRightButtonDown="ContractsTreeView_PreviewMouseRightButtonDown">
+                            <TreeView.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Delete"
+                                              Click="DeleteSelectedNode_Click" />
+                                </ContextMenu>
+                            </TreeView.ContextMenu>
+                        </TreeView>
                     </Border>
                 </Grid>
             </GroupBox>
@@ -225,15 +234,26 @@
                                           IsReadOnly="False"
                                           MinHeight="240">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Source Field"
-                                                            Binding="{Binding SourceField, UpdateSourceTrigger=PropertyChanged}"
+                                        <DataGridTextColumn Header="Source Fields"
+                                                            Binding="{Binding SourceFieldsText, UpdateSourceTrigger=PropertyChanged}"
                                                             Width="*"/>
-                                        <DataGridTextColumn Header="Target Field"
-                                                            Binding="{Binding TargetField, UpdateSourceTrigger=PropertyChanged}"
+                                        <DataGridTextColumn Header="Target Fields"
+                                                            Binding="{Binding TargetFieldsText, UpdateSourceTrigger=PropertyChanged}"
                                                             Width="*"/>
-                                        <DataGridTextColumn Header="Transformation"
-                                                            Binding="{Binding Transformation, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="150"/>
+                                        <DataGridComboBoxColumn Header="Transformation"
+                                                                SelectedItemBinding="{Binding Transformation, UpdateSourceTrigger=PropertyChanged}"
+                                                                Width="140">
+                                            <DataGridComboBoxColumn.ItemsSource>
+                                                <x:Array Type="{x:Type sys:String}">
+                                                    <sys:String>Direct</sys:String>
+                                                    <sys:String>Join</sys:String>
+                                                    <sys:String>Split</sys:String>
+                                                </x:Array>
+                                            </DataGridComboBoxColumn.ItemsSource>
+                                        </DataGridComboBoxColumn>
+                                        <DataGridTextColumn Header="Separator"
+                                                            Binding="{Binding Separator, UpdateSourceTrigger=PropertyChanged}"
+                                                            Width="100"/>
                                         <DataGridTemplateColumn Header="Actions" Width="110">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
