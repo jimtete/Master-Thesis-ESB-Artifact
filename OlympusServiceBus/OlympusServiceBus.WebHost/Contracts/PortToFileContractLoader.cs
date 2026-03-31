@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OlympusServiceBus.Utils;
 using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 
@@ -37,11 +38,6 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
 
         foreach (var file in Directory.EnumerateFiles(rootPath, "*.json", SearchOption.AllDirectories))
         {
-            if (ShouldSkipForwardContractFile(file))
-            {
-                continue;
-            }
-
             try
             {
                 var json = File.ReadAllText(file);
@@ -73,7 +69,7 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
                     continue;
                 }
 
-                // Direct shape: { "Name": "...", "Listener": ..., "Sink": ... }
+                // Direct shape
                 if (root.ValueKind == JsonValueKind.Object &&
                     LooksLikeDirectPortToFile(root))
                 {
@@ -123,12 +119,6 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
 
         value = default;
         return false;
-    }
-
-    private static bool ShouldSkipForwardContractFile(string filePath)
-    {
-        return filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
-               || filePath.Contains($"{Path.DirectorySeparatorChar}Input{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class PortToFileDocument

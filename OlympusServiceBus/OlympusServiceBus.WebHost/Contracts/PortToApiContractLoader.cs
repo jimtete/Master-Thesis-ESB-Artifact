@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using OlympusServiceBus.Utils;
 using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 
@@ -42,23 +41,87 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
             {
                 var json = File.ReadAllText(file);
 
-                var doc = JsonSerializer.Deserialize<PortToApiDocument>(json, JsonOpts);
-                var c = doc?.PortToApi;
-                if (c is null) continue;
+                if (string.IsNullOrWhiteSpace(json))
+                {
+                    continue;
+                }
 
-                c.ContractId = string.IsNullOrWhiteSpace(c.ContractId)
-                    ? Path.GetFileNameWithoutExtension(file)
-                    : c.ContractId;
+                using var document = JsonDocument.Parse(json);
+                var root = document.RootElement;
 
-                list.Add(c);
+                // Wrapper shape: { "PortToApi": { ... } }
+                if (root.ValueKind == JsonValueKind.Object &&
+                    TryGetPropertyCaseInsensitive(root, "PortToApi", out _))
+                {
+                    var wrapped = JsonSerializer.Deserialize<PortToApiDocument>(json, JsonOpts);
+                    var wrappedContract = wrapped?.PortToApi;
+
+                    if (wrappedContract is not null && !string.IsNullOrWhiteSpace(wrappedContract.Name))
+                    {
+                        wrappedContract.ContractId = string.IsNullOrWhiteSpace(wrappedContract.ContractId)
+                            ? Path.GetFileNameWithoutExtension(file)
+                            : wrappedContract.ContractId;
+
+                        list.Add(wrappedContract);
+                    }
+
+                    continue;
+                }
+
+                // Direct shape
+                if (root.ValueKind == JsonValueKind.Object &&
+                    LooksLikeDirectPortToApi(root))
+                {
+                    var direct = JsonSerializer.Deserialize<PortToApiContract>(json, JsonOpts);
+
+                    if (direct is not null && !string.IsNullOrWhiteSpace(direct.Name))
+                    {
+                        direct.ContractId = string.IsNullOrWhiteSpace(direct.ContractId)
+                            ? Path.GetFileNameWithoutExtension(file)
+                            : direct.ContractId;
+
+                        list.Add(direct);
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse PortToApi contract file: {File}", file);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load contract file: {File}", file);
+                _logger.LogWarning(ex, "Failed to load PortToApi contract file: {File}", file);
             }
         }
 
         _logger.LogInformation("Loaded PortToApi contracts: {Count}", list.Count);
         return list;
+    }
+
+    private static bool LooksLikeDirectPortToApi(JsonElement root)
+    {
+        return TryGetPropertyCaseInsensitive(root, "Name", out _) &&
+               TryGetPropertyCaseInsensitive(root, "Listener", out _) &&
+               TryGetPropertyCaseInsensitive(root, "Sink", out _);
+    }
+
+    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private sealed class PortToApiDocument
+    {
+        public PortToApiContract? PortToApi { get; set; }
     }
 }

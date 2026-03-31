@@ -16,7 +16,10 @@ using OlympusServiceBus.WebHost.Validation;
 using OlympusServiceBus.WebHost.WebOpenApiSchema;
 
 var builder = WebApplication.CreateBuilder(args);
-var runtimeStateDbPath = GetRuntimeStateDbPath();
+
+var appDataDirectoryPath = GetOlympusAppDataDirectoryPath();
+var runtimeStateDbPath = GetRuntimeStateDbPath(appDataDirectoryPath);
+var defaultContractsRoot = GetContractsDirectoryPath(appDataDirectoryPath);
 
 // Swagger (Swashbuckle)
 builder.Services.AddEndpointsApiExplorer();
@@ -64,14 +67,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "OlympusServiceBus.WebHost v1"));
 }
 
-// Contracts root
 var contractsOptions = app.Services.GetRequiredService<IOptions<ContractsOptions>>().Value;
-var contractsRoot = contractsOptions.RootPath;
-
-if (string.IsNullOrWhiteSpace(contractsRoot))
-    app.Logger.LogWarning("Contracts:RootPath is not set. No contracts will be loaded.");
-else
-    app.Logger.LogInformation("Contracts RootPath: {RootPath}", contractsRoot);
+var contractsRoot = defaultContractsRoot;
+app.Logger.LogInformation("Contracts RootPath: {RootPath}", contractsRoot);
 
 // Load + register
 var portToApiLoader = app.Services.GetRequiredService<IPortToApiContractLoader>();
@@ -90,9 +88,37 @@ portToFileRegistrar.Register(app, portToFileContracts);
 
 app.Run();
 
-static string GetRuntimeStateDbPath()
+static string GetOlympusAppDataDirectoryPath()
 {
     var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-    var appFolder = Path.Combine(appDataPath, "OlympusServiceBus");
-    return Path.Combine(appFolder, "runtime-state.db");
+    return Path.Combine(appDataPath, "OlympusServiceBus");
+}
+
+static string GetRuntimeStateDbPath(string appDataDirectoryPath)
+{
+    return Path.Combine(appDataDirectoryPath, "runtime-state.db");
+}
+
+static string GetContractsDirectoryPath(string appDataDirectoryPath)
+{
+    return Path.Combine(appDataDirectoryPath, "Contracts");
+}
+
+static string ResolveContractsDirectory(string? configuredRootPath, string defaultContractsRoot)
+{
+    var candidates = new[]
+    {
+        configuredRootPath,
+        defaultContractsRoot
+    };
+
+    foreach (var candidate in candidates)
+    {
+        if (!string.IsNullOrWhiteSpace(candidate) && Directory.Exists(candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return defaultContractsRoot;
 }
