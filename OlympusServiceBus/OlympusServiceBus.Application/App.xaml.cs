@@ -25,8 +25,8 @@ public partial class App : Application
         ConfigureServices(services);
         _serviceProvider = services.BuildServiceProvider();
 
-        var mainWindow = _serviceProvider.GetService<MainWindow>();
-        mainWindow.Show();
+        var configuratorWindow = _serviceProvider.GetRequiredService<ConfiguratorWindow>();
+        configuratorWindow.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)

@@ -78,21 +78,21 @@ public class ApiToApiExecutor
             {
                 case TransformationType.Direct:
                 {
-                    if (string.IsNullOrWhiteSpace(m.SourceFieldName) || string.IsNullOrWhiteSpace(m.SinkFieldName))
+                    if (m.SourceFieldName.IsEmpty || m.SinkFieldName.IsEmpty)
                         break;
 
                     if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var v) || v is null)
                         break;
 
-                    sinkPayload[m.SinkFieldName] = v.DeepClone();
+                    sinkPayload[m.SinkFieldName.Value!] = v.DeepClone();
                     break;
                 }
 
                 case TransformationType.Split:
                 {
-                    if (string.IsNullOrWhiteSpace(m.SourceFieldName) ||
+                    if (m.SourceFieldName.IsEmpty ||
                         m.SinkFields is null || m.SinkFields.Length == 0 ||
-                        m.SinkFields.All(string.IsNullOrWhiteSpace))
+                        m.SinkFields.All(x => x.IsEmpty))
                         break;
 
                     if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var node) || node is null)
@@ -111,13 +111,13 @@ public class ApiToApiExecutor
                     for (var i = 0; i < m.SinkFields.Length; i++)
                     {
                         var sinkField = m.SinkFields[i];
-                        if (string.IsNullOrWhiteSpace(sinkField))
+                        if (sinkField.IsEmpty)
                             continue;
 
                         if (i >= parts.Length)
                             break;
 
-                        sinkPayload[sinkField] = parts[i];
+                        sinkPayload[sinkField.Value!] = parts[i];
                     }
 
                     break;
@@ -125,9 +125,9 @@ public class ApiToApiExecutor
 
                 case TransformationType.Join:
                 {
-                    if (string.IsNullOrWhiteSpace(m.SinkFieldName) ||
+                    if (m.SinkFieldName.IsEmpty ||
                         m.SourceFields is null || m.SourceFields.Length == 0 ||
-                        m.SourceFields.All(string.IsNullOrWhiteSpace))
+                        m.SourceFields.All(x => x.IsEmpty))
                         break;
 
                     var sep = string.IsNullOrEmpty(m.Separator) ? " " : m.Separator;
@@ -136,7 +136,7 @@ public class ApiToApiExecutor
 
                     foreach (var f in m.SourceFields)
                     {
-                        if (string.IsNullOrWhiteSpace(f))
+                        if (f.IsEmpty)
                             continue;
 
                         if (!TryGetValueCaseInsensitive(sourceObj, f, out var n) || n is null)
@@ -150,7 +150,7 @@ public class ApiToApiExecutor
                     if (values.Count == 0)
                         break;
 
-                    sinkPayload[m.SinkFieldName] = string.Join(sep, values);
+                    sinkPayload[m.SinkFieldName.Value!] = string.Join(sep, values);
                     break;
                 }
             }
@@ -216,21 +216,25 @@ public class ApiToApiExecutor
         }
     }
 
-    private static bool TryGetValueCaseInsensitive(JsonObject obj, string key, out JsonNode? value)
+    private static bool TryGetValueCaseInsensitive(JsonObject obj, SourceField key, out JsonNode? value)
     {
-        if (obj.TryGetPropertyValue(key, out value))
+        value = null;
+
+        if (key.IsEmpty || key.Value is null)
+            return false;
+
+        if (obj.TryGetPropertyValue(key.Value, out value))
             return true;
 
         foreach (var kv in obj)
         {
-            if (string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(kv.Key, key.Value, StringComparison.OrdinalIgnoreCase))
             {
                 value = kv.Value;
                 return true;
             }
         }
 
-        value = null;
         return false;
     }
 }

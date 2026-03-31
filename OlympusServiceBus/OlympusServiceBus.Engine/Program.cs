@@ -15,7 +15,9 @@ using OlympusServiceBus.Utils;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-var runtimeStateDbPath = GetRuntimeStateDbPath();
+var appDataDirectoryPath = GetOlympusAppDataDirectoryPath();
+var runtimeStateDbPath = GetRuntimeStateDbPath(appDataDirectoryPath);
+var contractsDirectoryPath = GetContractsDirectoryPath(appDataDirectoryPath);
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
@@ -60,6 +62,7 @@ builder.Services.AddDbContext<RuntimeStateDbContext>(options =>
 var host = builder.Build();
 
 EnsureRuntimeStateDatabase(host, runtimeStateDbPath);
+EnsureContractsDirectory(contractsDirectoryPath);
 
 // Load all contracts ONCE at startup
 using (var scope = host.Services.CreateScope())
@@ -68,27 +71,37 @@ using (var scope = host.Services.CreateScope())
     var registry = scope.ServiceProvider.GetRequiredService<IContractRegistry>();
     var antiContractRegistry = scope.ServiceProvider.GetRequiredService<IAntiContractRegistry>();
 
-    var contracts = loader.LoadAllContracts("Configuration");
+    var contracts = loader.LoadAllContracts(contractsDirectoryPath);
     ContractSchedulingBootstrapValidator.ValidateAll(contracts);
     registry.SetAllContracts(contracts);
 
-    var antiContracts = loader.LoadAllAntiContracts("Configuration");
+    var antiContracts = loader.LoadAllAntiContracts(contractsDirectoryPath);
     antiContractRegistry.SetAllAntiContracts(antiContracts);
 
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
         .CreateLogger("Startup");
 
+    startupLogger.LogInformation("Contracts directory: {ContractsDirectory}", contractsDirectoryPath);
     startupLogger.LogInformation("Forward contracts loaded at startup: {Count}", contracts.Count);
     startupLogger.LogInformation("Anti-contracts loaded at startup: {Count}", antiContracts.Count);
 }
 
 await host.RunAsync();
 
-static string GetRuntimeStateDbPath()
+static string GetOlympusAppDataDirectoryPath()
 {
     var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-    var appFolder = Path.Combine(appDataPath, "OlympusServiceBus");
-    return Path.Combine(appFolder, "runtime-state.db");
+    return Path.Combine(appDataPath, "OlympusServiceBus");
+}
+
+static string GetRuntimeStateDbPath(string appDataDirectoryPath)
+{
+    return Path.Combine(appDataDirectoryPath, "runtime-state.db");
+}
+
+static string GetContractsDirectoryPath(string appDataDirectoryPath)
+{
+    return Path.Combine(appDataDirectoryPath, "Contracts");
 }
 
 static void EnsureRuntimeStateDatabase(IHost host, string dbPath)
@@ -96,9 +109,16 @@ static void EnsureRuntimeStateDatabase(IHost host, string dbPath)
     var directory = Path.GetDirectoryName(dbPath);
 
     if (!string.IsNullOrWhiteSpace(directory))
+    {
         Directory.CreateDirectory(directory);
+    }
 
     using var scope = host.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<RuntimeStateDbContext>();
     dbContext.Database.EnsureCreated();
+}
+
+static void EnsureContractsDirectory(string contractsDirectoryPath)
+{
+    Directory.CreateDirectory(contractsDirectoryPath);
 }
