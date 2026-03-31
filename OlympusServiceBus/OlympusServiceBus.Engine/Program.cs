@@ -5,6 +5,7 @@ using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.ApiToFile;
 using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.FileToApi;
+using OlympusServiceBus.Engine.Execution.FileToFile;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Execution.PortToFile;
 using OlympusServiceBus.Engine.Helpers;
@@ -43,6 +44,7 @@ builder.Services.AddScoped<FileSinkService>();
 
 builder.Services.AddScoped<FileToApiExecutor>();
 builder.Services.AddScoped<ApiToFileExecutor>();
+builder.Services.AddScoped<FileToFileExecutor>();
 
 // Anti-Contract services
 builder.Services.AddScoped<IAntiContractExecutor>(sp =>
@@ -65,6 +67,7 @@ builder.Services.AddSingleton<PortToApiPayloadHashProvider>();
 builder.Services.AddHostedService<ApiToApiWorker>();
 builder.Services.AddHostedService<ApiToFileWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
+builder.Services.AddHostedService<FileToFileWorker>();
 builder.Services.AddHostedService<WebHostReloadOnStartup>();
 
 builder.Services.AddDbContext<RuntimeStateDbContext>(options =>

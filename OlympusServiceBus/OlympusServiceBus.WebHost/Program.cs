@@ -80,7 +80,7 @@ var portToApiContracts = portToApiLoader.Load(contractsRoot);
 var portToFileLoader = app.Services.GetRequiredService<IPortToFileContractLoader>();
 var portToFileContracts = portToFileLoader.Load(contractsRoot);
 
-app.MapAdminContracts(portToApiContracts);
+app.MapAdminContracts(portToApiContracts, portToFileContracts);
 
 var portToApiRegistrar = app.Services.GetRequiredService<IPortToApiEndpointRegistrar>();
 portToApiRegistrar.Register(app, portToApiContracts);

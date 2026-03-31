@@ -37,6 +37,11 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
 
         foreach (var file in Directory.EnumerateFiles(rootPath, "*.json", SearchOption.AllDirectories))
         {
+            if (ShouldSkipForwardContractFile(file))
+            {
+                continue;
+            }
+
             try
             {
                 var json = File.ReadAllText(file);
@@ -46,25 +51,47 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
                     continue;
                 }
 
-                var doc = JsonSerializer.Deserialize<PortToFileDocument>(json, JsonOpts);
-                var contract = doc?.PortToFile;
+                using var document = JsonDocument.Parse(json);
+                var root = document.RootElement;
 
-                if (contract is null)
+                // Wrapper shape: { "PortToFile": { ... } }
+                if (root.ValueKind == JsonValueKind.Object &&
+                    TryGetPropertyCaseInsensitive(root, "PortToFile", out _))
                 {
-                    var direct = JsonSerializer.Deserialize<PortToFileContract>(json, JsonOpts);
-                    if (direct is null || string.IsNullOrWhiteSpace(direct.Name))
+                    var wrapped = JsonSerializer.Deserialize<PortToFileDocument>(json, JsonOpts);
+                    var wrappedContract = wrapped?.PortToFile;
+
+                    if (wrappedContract is not null && !string.IsNullOrWhiteSpace(wrappedContract.Name))
                     {
-                        continue;
+                        wrappedContract.ContractId = string.IsNullOrWhiteSpace(wrappedContract.ContractId)
+                            ? Path.GetFileNameWithoutExtension(file)
+                            : wrappedContract.ContractId;
+
+                        list.Add(wrappedContract);
                     }
 
-                    contract = direct;
+                    continue;
                 }
 
-                contract.ContractId = string.IsNullOrWhiteSpace(contract.ContractId)
-                    ? Path.GetFileNameWithoutExtension(file)
-                    : contract.ContractId;
+                // Direct shape: { "Name": "...", "Listener": ..., "Sink": ... }
+                if (root.ValueKind == JsonValueKind.Object &&
+                    LooksLikeDirectPortToFile(root))
+                {
+                    var direct = JsonSerializer.Deserialize<PortToFileContract>(json, JsonOpts);
 
-                list.Add(contract);
+                    if (direct is not null && !string.IsNullOrWhiteSpace(direct.Name))
+                    {
+                        direct.ContractId = string.IsNullOrWhiteSpace(direct.ContractId)
+                            ? Path.GetFileNameWithoutExtension(file)
+                            : direct.ContractId;
+
+                        list.Add(direct);
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse PortToFile contract file: {File}", file);
             }
             catch (Exception ex)
             {
@@ -74,6 +101,34 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
 
         _logger.LogInformation("Loaded PortToFile contracts: {Count}", list.Count);
         return list;
+    }
+
+    private static bool LooksLikeDirectPortToFile(JsonElement root)
+    {
+        return TryGetPropertyCaseInsensitive(root, "Name", out _) &&
+               TryGetPropertyCaseInsensitive(root, "Listener", out _) &&
+               TryGetPropertyCaseInsensitive(root, "Sink", out _);
+    }
+
+    private static bool TryGetPropertyCaseInsensitive(JsonElement element, string propertyName, out JsonElement value)
+    {
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(property.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
+
+    private static bool ShouldSkipForwardContractFile(string filePath)
+    {
+        return filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+               || filePath.Contains($"{Path.DirectorySeparatorChar}Input{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class PortToFileDocument
