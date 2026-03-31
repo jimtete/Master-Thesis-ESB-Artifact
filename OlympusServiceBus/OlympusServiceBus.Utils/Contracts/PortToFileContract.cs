@@ -3,7 +3,7 @@ using OlympusServiceBus.Utils.Configuration.File;
 
 namespace OlympusServiceBus.Utils.Contracts;
 
-public class PortToFileContract
+public class PortToFileContract : ContractBase
 {
     public ListenerConfig Listener { get; set; } = new();
     public FileSinkConfig Sink { get; set; } = new();
