@@ -84,6 +84,30 @@ public sealed class ContractLoader : IContractLoader
                     continue;
                 }
 
+                var a2f = JsonSerializer.Deserialize<ApiToFileDocument>(json, JsonOptions);
+                if (a2f?.ApiToFile is not null)
+                {
+                    EnsureContractId(a2f.ApiToFile, file);
+                    loadedContracts.Add(new LoadedContract(a2f.ApiToFile, file));
+                    continue;
+                }
+
+                var f2f = JsonSerializer.Deserialize<FileToFileDocument>(json, JsonOptions);
+                if (f2f?.FileToFile is not null)
+                {
+                    EnsureContractId(f2f.FileToFile, file);
+                    loadedContracts.Add(new LoadedContract(f2f.FileToFile, file));
+                    continue;
+                }
+
+                var p2f = JsonSerializer.Deserialize<PortToFileDocument>(json, JsonOptions);
+                if (p2f?.PortToFile is not null)
+                {
+                    EnsureContractId(p2f.PortToFile, file);
+                    loadedContracts.Add(new LoadedContract(p2f.PortToFile, file));
+                    continue;
+                }
+
                 // ---- Direct shapes ----
 
                 var directA2a = JsonSerializer.Deserialize<ApiToApiContract>(json, JsonOptions);
@@ -107,6 +131,30 @@ public sealed class ContractLoader : IContractLoader
                 {
                     EnsureContractId(directP2a, file);
                     loadedContracts.Add(new LoadedContract(directP2a, file));
+                    continue;
+                }
+
+                var directA2f = JsonSerializer.Deserialize<ApiToFileContract>(json, JsonOptions);
+                if (directA2f is not null && LooksLikeForwardContract(directA2f))
+                {
+                    EnsureContractId(directA2f, file);
+                    loadedContracts.Add(new LoadedContract(directA2f, file));
+                    continue;
+                }
+
+                var directF2f = JsonSerializer.Deserialize<FileToFileContract>(json, JsonOptions);
+                if (directF2f is not null && LooksLikeForwardContract(directF2f))
+                {
+                    EnsureContractId(directF2f, file);
+                    loadedContracts.Add(new LoadedContract(directF2f, file));
+                    continue;
+                }
+
+                var directP2f = JsonSerializer.Deserialize<PortToFileContract>(json, JsonOptions);
+                if (directP2f is not null && LooksLikeForwardContract(directP2f))
+                {
+                    EnsureContractId(directP2f, file);
+                    loadedContracts.Add(new LoadedContract(directP2f, file));
                     continue;
                 }
 
@@ -328,6 +376,21 @@ public sealed class ContractLoader : IContractLoader
     private sealed class PortToApiDocument
     {
         public PortToApiContract? PortToApi { get; set; }
+    }
+
+    private sealed class ApiToFileDocument
+    {
+        public ApiToFileContract? ApiToFile { get; set; }
+    }
+
+    private sealed class FileToFileDocument
+    {
+        public FileToFileContract? FileToFile { get; set; }
+    }
+
+    private sealed class PortToFileDocument
+    {
+        public PortToFileContract? PortToFile { get; set; }
     }
 
     private sealed class ApiStatusAntiContractDocument

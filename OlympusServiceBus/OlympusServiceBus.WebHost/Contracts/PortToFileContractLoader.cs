@@ -1,13 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OlympusServiceBus.Utils;
 using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.WebHost.Contracts;
 
-public sealed class PortToApiContractLoader : IPortToApiContractLoader
+public sealed class PortToFileContractLoader : IPortToFileContractLoader
 {
-    private readonly ILogger<PortToApiContractLoader> _logger;
+    private readonly ILogger<PortToFileContractLoader> _logger;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -20,14 +21,14 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
         }
     };
 
-    public PortToApiContractLoader(ILogger<PortToApiContractLoader> logger)
+    public PortToFileContractLoader(ILogger<PortToFileContractLoader> logger)
     {
         _logger = logger;
     }
 
-    public List<PortToApiContract> Load(string? rootPath)
+    public List<PortToFileContract> Load(string? rootPath)
     {
-        var list = new List<PortToApiContract>();
+        var list = new List<PortToFileContract>();
 
         if (string.IsNullOrWhiteSpace(rootPath) || !Directory.Exists(rootPath))
         {
@@ -49,12 +50,12 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
                 using var document = JsonDocument.Parse(json);
                 var root = document.RootElement;
 
-                // Wrapper shape: { "PortToApi": { ... } }
+                // Wrapper shape: { "PortToFile": { ... } }
                 if (root.ValueKind == JsonValueKind.Object &&
-                    TryGetPropertyCaseInsensitive(root, "PortToApi", out _))
+                    TryGetPropertyCaseInsensitive(root, "PortToFile", out _))
                 {
-                    var wrapped = JsonSerializer.Deserialize<PortToApiDocument>(json, JsonOpts);
-                    var wrappedContract = wrapped?.PortToApi;
+                    var wrapped = JsonSerializer.Deserialize<PortToFileDocument>(json, JsonOpts);
+                    var wrappedContract = wrapped?.PortToFile;
 
                     if (wrappedContract is not null && !string.IsNullOrWhiteSpace(wrappedContract.Name))
                     {
@@ -70,9 +71,9 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
 
                 // Direct shape
                 if (root.ValueKind == JsonValueKind.Object &&
-                    LooksLikeDirectPortToApi(root))
+                    LooksLikeDirectPortToFile(root))
                 {
-                    var direct = JsonSerializer.Deserialize<PortToApiContract>(json, JsonOpts);
+                    var direct = JsonSerializer.Deserialize<PortToFileContract>(json, JsonOpts);
 
                     if (direct is not null && !string.IsNullOrWhiteSpace(direct.Name))
                     {
@@ -86,19 +87,19 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
             }
             catch (JsonException ex)
             {
-                _logger.LogWarning(ex, "Failed to parse PortToApi contract file: {File}", file);
+                _logger.LogWarning(ex, "Failed to parse PortToFile contract file: {File}", file);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to load PortToApi contract file: {File}", file);
+                _logger.LogWarning(ex, "Failed to load PortToFile contract file: {File}", file);
             }
         }
 
-        _logger.LogInformation("Loaded PortToApi contracts: {Count}", list.Count);
+        _logger.LogInformation("Loaded PortToFile contracts: {Count}", list.Count);
         return list;
     }
 
-    private static bool LooksLikeDirectPortToApi(JsonElement root)
+    private static bool LooksLikeDirectPortToFile(JsonElement root)
     {
         return TryGetPropertyCaseInsensitive(root, "Name", out _) &&
                TryGetPropertyCaseInsensitive(root, "Listener", out _) &&
@@ -120,8 +121,8 @@ public sealed class PortToApiContractLoader : IPortToApiContractLoader
         return false;
     }
 
-    private sealed class PortToApiDocument
+    private sealed class PortToFileDocument
     {
-        public PortToApiContract? PortToApi { get; set; }
+        public PortToFileContract? PortToFile { get; set; }
     }
 }
