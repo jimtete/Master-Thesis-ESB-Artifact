@@ -2,8 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Execution.AntiContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
+using OlympusServiceBus.Engine.Execution.ApiToFile;
+using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.PortToApi;
+using OlympusServiceBus.Engine.Execution.PortToFile;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.Engine.Scheduling;
 using OlympusServiceBus.Engine.Services;
@@ -25,6 +28,7 @@ builder.Services.AddHttpClient<ApiStatusAntiContractExecutor>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();
+builder.Services.AddScoped<IApiToFileExecutionService, ApiToFileExecutionService>();
 
 builder.Services.AddScoped<IContractMessageStateRepository, ContractMessageStateRepository>();
 builder.Services.AddScoped<IContractMessageStateService, ContractMessageStateService>();
@@ -32,7 +36,13 @@ builder.Services.AddScoped<IContractExecutionStateRepository, ContractExecutionS
 builder.Services.AddScoped<IContractExecutionStateService, ContractExecutionStateService>();
 
 builder.Services.AddScoped<IPortToApiEngine, PortToApiEngine>();
+builder.Services.AddScoped<IPortToFileEngine, PortToFileEngine>();
+
+builder.Services.AddScoped<FileSinkWriter>();
+builder.Services.AddScoped<FileSinkService>();
+
 builder.Services.AddScoped<FileToApiExecutor>();
+builder.Services.AddScoped<ApiToFileExecutor>();
 
 // Anti-Contract services
 builder.Services.AddScoped<IAntiContractExecutor>(sp =>
@@ -53,6 +63,7 @@ builder.Services.AddSingleton<PortToApiBusinessKeyProvider>();
 builder.Services.AddSingleton<PortToApiPayloadHashProvider>();
 
 builder.Services.AddHostedService<ApiToApiWorker>();
+builder.Services.AddHostedService<ApiToFileWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
 builder.Services.AddHostedService<WebHostReloadOnStartup>();
 

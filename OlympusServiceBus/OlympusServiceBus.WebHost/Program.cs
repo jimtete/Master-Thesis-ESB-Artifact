@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.PortToApi;
+using OlympusServiceBus.Engine.Execution.PortToFile;
 using OlympusServiceBus.RuntimeState;
 using OlympusServiceBus.RuntimeState.Repositories;
 using OlympusServiceBus.RuntimeState.Services;
@@ -35,16 +37,24 @@ builder.Services.AddScoped<IContractMessageStateService, ContractMessageStateSer
 
 // DI for extracted services
 builder.Services.AddSingleton<IPortToApiContractLoader, PortToApiContractLoader>();
+builder.Services.AddSingleton<IPortToFileContractLoader, PortToFileContractLoader>();
+
 builder.Services.AddSingleton<PortToApiSchemaBuilder>();
 builder.Services.AddSingleton<PortToApiInboundValidator>();
+
 builder.Services.AddSingleton<IPortToApiEndpointRegistrar, PortToApiEndpointRegistrar>();
+builder.Services.AddSingleton<IPortToFileEndpointRegistrar, PortToFileEndpointRegistrar>();
 
 builder.Services.AddSingleton<PortToApiBusinessKeyProvider>();
 builder.Services.AddSingleton<PortToApiPayloadHashProvider>();
 
+builder.Services.AddScoped<FileSinkWriter>();
+builder.Services.AddScoped<FileSinkService>();
+
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
 
 builder.Services.AddScoped<IPortToApiEngine, PortToApiEngine>();
+builder.Services.AddScoped<IPortToFileEngine, PortToFileEngine>();
 
 var app = builder.Build();
 
@@ -64,13 +74,19 @@ else
     app.Logger.LogInformation("Contracts RootPath: {RootPath}", contractsRoot);
 
 // Load + register
-var loader = app.Services.GetRequiredService<IPortToApiContractLoader>();
-var contracts = loader.Load(contractsRoot);
+var portToApiLoader = app.Services.GetRequiredService<IPortToApiContractLoader>();
+var portToApiContracts = portToApiLoader.Load(contractsRoot);
 
-app.MapAdminContracts(contracts);
+var portToFileLoader = app.Services.GetRequiredService<IPortToFileContractLoader>();
+var portToFileContracts = portToFileLoader.Load(contractsRoot);
 
-var registrar = app.Services.GetRequiredService<IPortToApiEndpointRegistrar>();
-registrar.Register(app, contracts);
+app.MapAdminContracts(portToApiContracts);
+
+var portToApiRegistrar = app.Services.GetRequiredService<IPortToApiEndpointRegistrar>();
+portToApiRegistrar.Register(app, portToApiContracts);
+
+var portToFileRegistrar = app.Services.GetRequiredService<IPortToFileEndpointRegistrar>();
+portToFileRegistrar.Register(app, portToFileContracts);
 
 app.Run();
 
