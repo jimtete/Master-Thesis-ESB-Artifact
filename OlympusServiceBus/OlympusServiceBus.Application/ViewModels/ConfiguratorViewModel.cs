@@ -285,6 +285,8 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             request.ListenerMethod = GetStringProperty(listenerElement, "Method", "POST");
         }
 
+        request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
+
         return request;
     }
 

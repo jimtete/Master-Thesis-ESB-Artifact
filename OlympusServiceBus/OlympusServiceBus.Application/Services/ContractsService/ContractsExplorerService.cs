@@ -154,6 +154,7 @@ public class ContractsExplorerService : IContractsExplorerService
     {
         var contractId = Path.GetFileNameWithoutExtension(filePath);
         var effectiveMappings = BuildEffectiveMappings(request.Mappings);
+        var businessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField);
 
         var listenerPath = string.IsNullOrWhiteSpace(request.ListenerPath)
             ? "/incoming"
@@ -178,6 +179,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 Name = request.Name.Trim(),
                 Enabled = true,
                 ContractType = "PortToApi",
+                BusinessKeyFields = businessKeyFields,
                 Listener = new
                 {
                     Path = listenerPath,

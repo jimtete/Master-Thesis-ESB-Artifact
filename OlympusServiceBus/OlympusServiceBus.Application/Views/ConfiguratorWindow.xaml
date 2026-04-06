@@ -264,9 +264,9 @@
                                      Text="{Binding ContractCreator.SinkMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- ApiToApi only -->
+                        <!-- ApiToApi and PortToApi -->
                         <Grid Grid.Row="6"
-                              Visibility="{Binding ContractCreator.IsApiToApi, Converter={StaticResource BoolToVisibilityConverter}}">
+                              Visibility="{Binding ContractCreator.SupportsBusinessKey, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="220"/>

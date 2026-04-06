@@ -51,12 +51,14 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsApiToApi));
             OnPropertyChanged(nameof(IsPortToApi));
             OnPropertyChanged(nameof(IsFileToApi));
+            OnPropertyChanged(nameof(SupportsBusinessKey));
         }
     }
 
     public bool IsApiToApi => string.Equals(ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase);
     public bool IsPortToApi => string.Equals(ContractType, "PortToApi", StringComparison.OrdinalIgnoreCase);
     public bool IsFileToApi => string.Equals(ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase);
+    public bool SupportsBusinessKey => IsApiToApi || IsPortToApi;
 
     public string SourceEndpoint
     {
