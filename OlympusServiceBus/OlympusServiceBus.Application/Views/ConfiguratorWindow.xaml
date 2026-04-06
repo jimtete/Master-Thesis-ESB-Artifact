@@ -284,7 +284,9 @@
                         </Grid>
 
                         <!-- Scheduling -->
-                        <GroupBox Grid.Row="8" Header="Scheduling (Required)">
+                        <GroupBox Grid.Row="8"
+                                  Header="Scheduling (Required)"
+                                  Visibility="{Binding ContractCreator.SupportsScheduling, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid Margin="8">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>

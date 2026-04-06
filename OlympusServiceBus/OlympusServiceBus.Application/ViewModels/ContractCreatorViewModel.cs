@@ -53,6 +53,12 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsPortToApi));
             OnPropertyChanged(nameof(IsFileToApi));
             OnPropertyChanged(nameof(SupportsBusinessKey));
+            OnPropertyChanged(nameof(SupportsScheduling));
+
+            if (IsPortToApi)
+            {
+                Schedule = null;
+            }
         }
     }
 
@@ -60,6 +66,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     public bool IsPortToApi => string.Equals(ContractType, "PortToApi", StringComparison.OrdinalIgnoreCase);
     public bool IsFileToApi => string.Equals(ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase);
     public bool SupportsBusinessKey => IsApiToApi || IsPortToApi;
+    public bool SupportsScheduling => IsApiToApi || IsFileToApi;
 
     public bool HasSchedule => Schedule is not null;
 

@@ -154,7 +154,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (request.Schedule is null)
+        if (ContractCreator.SupportsScheduling && request.Schedule is null)
         {
             StatusMessage = "Please configure scheduling before saving the contract.";
             return;
@@ -292,6 +292,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
 
         request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
+        request.Schedule = null;
 
         return request;
     }

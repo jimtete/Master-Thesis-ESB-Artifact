@@ -176,7 +176,6 @@ public class ContractsExplorerService : IContractsExplorerService
                 Enabled = true,
                 ContractType = "PortToApi",
                 BusinessKeyFields = businessKeyFields,
-                Schedule = BuildScheduleObject(request.Schedule),
                 Listener = new
                 {
                     Path = listenerPath,
