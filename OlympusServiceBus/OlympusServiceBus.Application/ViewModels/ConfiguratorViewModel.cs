@@ -332,7 +332,8 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             BusinessKeyField = "id",
             ListenerPath = "/incoming",
             ListenerMethod = "POST",
-            FileType = "*.csv",
+            FileType = "csv",
+            Schedule = ParseScheduleRequest(contractElement),
             Mappings = ParseMappings(contractElement)
         };
     }
@@ -357,6 +358,48 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
 
         return keys.Count > 0 ? string.Join(", ", keys) : "id";
+    }
+    
+    private static ScheduleEditorRequest? ParseScheduleRequest(JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("Schedule", out var scheduleElement) ||
+            scheduleElement.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var mode = GetStringProperty(scheduleElement, "Mode", "Manual");
+
+        var schedule = new ScheduleEditorRequest
+        {
+            Mode = mode,
+            TimeZone = GetStringProperty(scheduleElement, "TimeZone", "UTC"),
+            CronExpression = GetStringProperty(scheduleElement, "CronExpression", string.Empty),
+            IntervalValue = 1,
+            IntervalUnit = "Minutes"
+        };
+
+        if (scheduleElement.TryGetProperty("RunAt", out var runAtElement) &&
+            runAtElement.ValueKind == JsonValueKind.String &&
+            DateTimeOffset.TryParse(runAtElement.GetString(), out var runAt))
+        {
+            schedule.RunAt = runAt;
+        }
+
+        if (scheduleElement.TryGetProperty("Every", out var everyElement) &&
+            everyElement.ValueKind == JsonValueKind.Object)
+        {
+            if (everyElement.TryGetProperty("Value", out var valueElement) &&
+                valueElement.ValueKind == JsonValueKind.Number &&
+                valueElement.TryGetInt32(out var intervalValue))
+            {
+                schedule.IntervalValue = intervalValue;
+            }
+
+            schedule.IntervalUnit = GetStringProperty(everyElement, "Unit", "Minutes");
+        }
+
+        return schedule;
     }
 
     private static List<ContractFieldMappingModel> ParseMappings(JsonElement contractElement)
