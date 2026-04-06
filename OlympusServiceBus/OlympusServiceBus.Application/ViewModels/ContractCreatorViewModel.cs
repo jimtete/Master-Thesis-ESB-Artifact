@@ -11,11 +11,21 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
 {
     private string _name = string.Empty;
     private string _contractType = "ApiToApi";
+
     private string _sourceEndpoint = string.Empty;
     private string _sourceMethod = "GET";
+
     private string _sinkEndpoint = string.Empty;
     private string _sinkMethod = "POST";
+
     private string _businessKeyField = "id";
+
+    private string _listenerPath = "/incoming";
+    private string _listenerMethod = "POST";
+
+    private string _filePath = string.Empty;
+    private string _fileType = "Csv";
+
     private bool _isEditMode;
     private string? _selectedContractFilePath;
 
@@ -38,8 +48,15 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             if (_contractType == value) return;
             _contractType = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsApiToApi));
+            OnPropertyChanged(nameof(IsPortToApi));
+            OnPropertyChanged(nameof(IsFileToApi));
         }
     }
+
+    public bool IsApiToApi => string.Equals(ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase);
+    public bool IsPortToApi => string.Equals(ContractType, "PortToApi", StringComparison.OrdinalIgnoreCase);
+    public bool IsFileToApi => string.Equals(ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase);
 
     public string SourceEndpoint
     {
@@ -96,6 +113,50 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ListenerPath
+    {
+        get => _listenerPath;
+        set
+        {
+            if (_listenerPath == value) return;
+            _listenerPath = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string ListenerMethod
+    {
+        get => _listenerMethod;
+        set
+        {
+            if (_listenerMethod == value) return;
+            _listenerMethod = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string FilePath
+    {
+        get => _filePath;
+        set
+        {
+            if (_filePath == value) return;
+            _filePath = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string FileType
+    {
+        get => _fileType;
+        set
+        {
+            if (_fileType == value) return;
+            _fileType = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool IsEditMode
     {
         get => _isEditMode;
@@ -142,11 +203,21 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         {
             Name = Name.Trim(),
             ContractType = ContractType.Trim(),
+
             SourceEndpoint = SourceEndpoint.Trim(),
             SourceMethod = SourceMethod.Trim(),
+
             SinkEndpoint = SinkEndpoint.Trim(),
             SinkMethod = SinkMethod.Trim(),
+
             BusinessKeyField = BusinessKeyField.Trim(),
+
+            ListenerPath = ListenerPath.Trim(),
+            ListenerMethod = ListenerMethod.Trim(),
+
+            FilePath = FilePath.Trim(),
+            FileType = FileType.Trim(),
+
             Mappings = Mappings.ToList(),
         };
     }
@@ -157,11 +228,20 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
 
         Name = request.Name;
         ContractType = string.IsNullOrWhiteSpace(request.ContractType) ? "ApiToApi" : request.ContractType;
+
         SourceEndpoint = request.SourceEndpoint;
         SourceMethod = string.IsNullOrWhiteSpace(request.SourceMethod) ? "GET" : request.SourceMethod;
+
         SinkEndpoint = request.SinkEndpoint;
         SinkMethod = string.IsNullOrWhiteSpace(request.SinkMethod) ? "POST" : request.SinkMethod;
+
         BusinessKeyField = string.IsNullOrWhiteSpace(request.BusinessKeyField) ? "id" : request.BusinessKeyField;
+
+        ListenerPath = string.IsNullOrWhiteSpace(request.ListenerPath) ? "/incoming" : request.ListenerPath;
+        ListenerMethod = string.IsNullOrWhiteSpace(request.ListenerMethod) ? "POST" : request.ListenerMethod;
+
+        FilePath = request.FilePath;
+        FileType = string.IsNullOrWhiteSpace(request.FileType) ? "Csv" : request.FileType;
 
         Mappings.Clear();
 
@@ -208,11 +288,20 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     {
         Name = string.Empty;
         ContractType = "ApiToApi";
+
         SourceEndpoint = string.Empty;
         SourceMethod = "GET";
+
         SinkEndpoint = string.Empty;
         SinkMethod = "POST";
+
         BusinessKeyField = "id";
+
+        ListenerPath = "/incoming";
+        ListenerMethod = "POST";
+
+        FilePath = string.Empty;
+        FileType = "Csv";
 
         Mappings.Clear();
         Mappings.Add(new ContractFieldMappingModel

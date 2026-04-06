@@ -18,6 +18,8 @@
                                   ItemsSource="{Binding Children}">
             <TextBlock Text="{Binding Name}" />
         </HierarchicalDataTemplate>
+
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </Window.Resources>
 
     <Grid Margin="12">
@@ -153,10 +155,14 @@
                                       SelectedValue="{Binding ContractCreator.ContractType, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedValuePath="Content">
                                 <ComboBoxItem Content="ApiToApi"/>
+                                <ComboBoxItem Content="PortToApi"/>
+                                <ComboBoxItem Content="FileToApi"/>
                             </ComboBox>
                         </Grid>
 
-                        <Grid Grid.Row="2">
+                        <!-- ApiToApi -->
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding ContractCreator.IsApiToApi, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
@@ -179,6 +185,62 @@
                                      Text="{Binding ContractCreator.SourceMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
+                        <!-- PortToApi -->
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding ContractCreator.IsPortToApi, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Listener Path:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.ListenerPath, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Method:"/>
+                            <TextBox Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.ListenerMethod, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <!-- FileToApi -->
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding ContractCreator.IsFileToApi, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="File Path:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.FilePath, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="File Type:"/>
+                            <ComboBox Grid.Column="3"
+                                      Margin="8,0,0,0"
+                                      SelectedValue="{Binding ContractCreator.FileType, UpdateSourceTrigger=PropertyChanged}"
+                                      SelectedValuePath="Content">
+                                <ComboBoxItem Content="csv"/>
+                                <ComboBoxItem Content="json"/>
+                                <ComboBoxItem Content="txt"/>
+                            </ComboBox>
+                        </Grid>
+
+                        <!-- Shared Sink -->
                         <Grid Grid.Row="4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
@@ -202,7 +264,9 @@
                                      Text="{Binding ContractCreator.SinkMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <Grid Grid.Row="6">
+                        <!-- ApiToApi only -->
+                        <Grid Grid.Row="6"
+                              Visibility="{Binding ContractCreator.IsApiToApi, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="220"/>

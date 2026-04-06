@@ -241,177 +241,225 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
 
         using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
 
-        if (!document.RootElement.TryGetProperty("ApiToApi", out var apiToApiElement))
+        if (root.TryGetProperty("ApiToApi", out var apiToApiElement))
         {
-            return null;
+            return BuildApiToApiRequest(apiToApiElement);
         }
 
-        var name = apiToApiElement.TryGetProperty("Name", out var nameElement)
-            ? nameElement.GetString() ?? string.Empty
-            : string.Empty;
-
-        var contractType = apiToApiElement.TryGetProperty("ContractType", out var contractTypeElement)
-            ? contractTypeElement.GetString() ?? "ApiToApi"
-            : "ApiToApi";
-
-        var sourceEndpoint = string.Empty;
-        var sourceMethod = "GET";
-
-        if (apiToApiElement.TryGetProperty("Source", out var sourceElement))
+        if (root.TryGetProperty("PortToApi", out var portToApiElement))
         {
-            if (sourceElement.TryGetProperty("Endpoint", out var endpointElement))
-            {
-                sourceEndpoint = endpointElement.GetString() ?? string.Empty;
-            }
-
-            if (sourceElement.TryGetProperty("Method", out var methodElement))
-            {
-                sourceMethod = methodElement.GetString() ?? "GET";
-            }
+            return BuildPortToApiRequest(portToApiElement);
         }
+
+        if (root.TryGetProperty("FileToApi", out var fileToApiElement))
+        {
+            return BuildFileToApiRequest(fileToApiElement);
+        }
+
+        return null;
+    }
+
+    private static CreateContractRequest BuildApiToApiRequest(JsonElement contractElement)
+    {
+        var request = BuildBaseRequest(contractElement, "ApiToApi");
+
+        if (contractElement.TryGetProperty("Source", out var sourceElement))
+        {
+            request.SourceEndpoint = GetStringProperty(sourceElement, "Endpoint");
+            request.SourceMethod = GetStringProperty(sourceElement, "Method", "GET");
+        }
+
+        request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
+        return request;
+    }
+
+    private static CreateContractRequest BuildPortToApiRequest(JsonElement contractElement)
+    {
+        var request = BuildBaseRequest(contractElement, "PortToApi");
+
+        if (contractElement.TryGetProperty("Listener", out var listenerElement))
+        {
+            request.ListenerPath = GetStringProperty(listenerElement, "Path", "/incoming");
+            request.ListenerMethod = GetStringProperty(listenerElement, "Method", "POST");
+        }
+
+        return request;
+    }
+
+    private static CreateContractRequest BuildFileToApiRequest(JsonElement contractElement)
+    {
+        var request = BuildBaseRequest(contractElement, "FileToApi");
+
+        if (contractElement.TryGetProperty("Source", out var sourceElement))
+        {
+            request.FilePath = GetStringProperty(sourceElement, "Directory");
+            request.FileType = GetStringProperty(sourceElement, "SearchPattern", "*.csv");
+        }
+
+        return request;
+    }
+
+    private static CreateContractRequest BuildBaseRequest(JsonElement contractElement, string fallbackType)
+    {
+        var name = GetStringProperty(contractElement, "Name");
+        var contractType = GetStringProperty(contractElement, "ContractType", fallbackType);
 
         var sinkEndpoint = string.Empty;
         var sinkMethod = "POST";
 
-        if (apiToApiElement.TryGetProperty("Sink", out var sinkElement))
+        if (contractElement.TryGetProperty("Sink", out var sinkElement))
         {
-            if (sinkElement.TryGetProperty("Endpoint", out var endpointElement))
-            {
-                sinkEndpoint = endpointElement.GetString() ?? string.Empty;
-            }
-
-            if (sinkElement.TryGetProperty("Method", out var methodElement))
-            {
-                sinkMethod = methodElement.GetString() ?? "POST";
-            }
-        }
-
-        var businessKeyField = "id";
-
-        if (apiToApiElement.TryGetProperty("BusinessKeyFields", out var businessKeyFieldsElement) &&
-            businessKeyFieldsElement.ValueKind == JsonValueKind.Array)
-        {
-            var keys = new List<string>();
-
-            foreach (var item in businessKeyFieldsElement.EnumerateArray())
-            {
-                var value = item.GetString();
-                if (!string.IsNullOrWhiteSpace(value))
-                {
-                    keys.Add(value);
-                }
-            }
-
-            if (keys.Count > 0)
-            {
-                businessKeyField = string.Join(", ", keys);
-            }
-        }
-
-        var mappings = new List<ContractFieldMappingModel>();
-
-        if (apiToApiElement.TryGetProperty("Mappings", out var mappingsElement) &&
-            mappingsElement.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var mappingElement in mappingsElement.EnumerateArray())
-            {
-                var transformation = mappingElement.TryGetProperty("TransformationType", out var transformationTypeElement)
-                    ? transformationTypeElement.GetString() ?? "Direct"
-                    : (mappingElement.TryGetProperty("Transformation", out var legacyTransformationElement)
-                        ? legacyTransformationElement.GetString() ?? "Direct"
-                        : "Direct");
-
-                var sourceFields = new List<string>();
-                var targetFields = new List<string>();
-
-                if (mappingElement.TryGetProperty("SourceFieldName", out var sourceFieldNameElement))
-                {
-                    var value = sourceFieldNameElement.GetString();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        sourceFields.Add(value);
-                    }
-                }
-
-                if (mappingElement.TryGetProperty("SourceFields", out var sourceFieldsElement) &&
-                    sourceFieldsElement.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in sourceFieldsElement.EnumerateArray())
-                    {
-                        var value = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            sourceFields.Add(value);
-                        }
-                    }
-                }
-
-                if (mappingElement.TryGetProperty("SinkFieldName", out var sinkFieldNameElement))
-                {
-                    var value = sinkFieldNameElement.GetString();
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        targetFields.Add(value);
-                    }
-                }
-
-                if (mappingElement.TryGetProperty("SinkFields", out var sinkFieldsElement) &&
-                    sinkFieldsElement.ValueKind == JsonValueKind.Array)
-                {
-                    var sinkValues = new List<string>();
-
-                    foreach (var item in sinkFieldsElement.EnumerateArray())
-                    {
-                        var value = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            sinkValues.Add(value);
-                        }
-                    }
-
-                    if (sinkValues.Count > 0)
-                    {
-                        targetFields.Add(string.Join(";", sinkValues));
-                    }
-                }
-
-                if (mappingElement.TryGetProperty("TargetFields", out var targetFieldsElement) &&
-                    targetFieldsElement.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var item in targetFieldsElement.EnumerateArray())
-                    {
-                        var value = item.GetString();
-                        if (!string.IsNullOrWhiteSpace(value))
-                        {
-                            targetFields.Add(value);
-                        }
-                    }
-                }
-
-                mappings.Add(new ContractFieldMappingModel
-                {
-                    SourceFields = sourceFields,
-                    TargetFields = targetFields,
-                    Transformation = transformation,
-                    Separator = mappingElement.TryGetProperty("Separator", out var separatorElement)
-                        ? separatorElement.GetString() ?? " "
-                        : " "
-                });
-            }
+            sinkEndpoint = GetStringProperty(sinkElement, "Endpoint");
+            sinkMethod = GetStringProperty(sinkElement, "Method", "POST");
         }
 
         return new CreateContractRequest
         {
             Name = name,
             ContractType = contractType,
-            SourceEndpoint = sourceEndpoint,
-            SourceMethod = sourceMethod,
             SinkEndpoint = sinkEndpoint,
             SinkMethod = sinkMethod,
-            BusinessKeyField = businessKeyField,
-            Mappings = mappings
+            BusinessKeyField = "id",
+            ListenerPath = "/incoming",
+            ListenerMethod = "POST",
+            FileType = "*.csv",
+            Mappings = ParseMappings(contractElement)
         };
+    }
+
+    private static string ParseBusinessKeyFields(JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("BusinessKeyFields", out var businessKeyFieldsElement) ||
+            businessKeyFieldsElement.ValueKind != JsonValueKind.Array)
+        {
+            return "id";
+        }
+
+        var keys = new List<string>();
+
+        foreach (var item in businessKeyFieldsElement.EnumerateArray())
+        {
+            var value = item.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                keys.Add(value);
+            }
+        }
+
+        return keys.Count > 0 ? string.Join(", ", keys) : "id";
+    }
+
+    private static List<ContractFieldMappingModel> ParseMappings(JsonElement contractElement)
+    {
+        var mappings = new List<ContractFieldMappingModel>();
+
+        if (!contractElement.TryGetProperty("Mappings", out var mappingsElement) ||
+            mappingsElement.ValueKind != JsonValueKind.Array)
+        {
+            return mappings;
+        }
+
+        foreach (var mappingElement in mappingsElement.EnumerateArray())
+        {
+            var transformation = mappingElement.TryGetProperty("TransformationType", out var transformationTypeElement)
+                ? transformationTypeElement.GetString() ?? "Direct"
+                : (mappingElement.TryGetProperty("Transformation", out var legacyTransformationElement)
+                    ? legacyTransformationElement.GetString() ?? "Direct"
+                    : "Direct");
+
+            var sourceFields = new List<string>();
+            var targetFields = new List<string>();
+
+            if (mappingElement.TryGetProperty("SourceFieldName", out var sourceFieldNameElement))
+            {
+                var value = sourceFieldNameElement.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    sourceFields.Add(value);
+                }
+            }
+
+            if (mappingElement.TryGetProperty("SourceFields", out var sourceFieldsElement) &&
+                sourceFieldsElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in sourceFieldsElement.EnumerateArray())
+                {
+                    var value = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        sourceFields.Add(value);
+                    }
+                }
+            }
+
+            if (mappingElement.TryGetProperty("SinkFieldName", out var sinkFieldNameElement))
+            {
+                var value = sinkFieldNameElement.GetString();
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    targetFields.Add(value);
+                }
+            }
+
+            if (mappingElement.TryGetProperty("SinkFields", out var sinkFieldsElement) &&
+                sinkFieldsElement.ValueKind == JsonValueKind.Array)
+            {
+                var sinkValues = new List<string>();
+
+                foreach (var item in sinkFieldsElement.EnumerateArray())
+                {
+                    var value = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        sinkValues.Add(value);
+                    }
+                }
+
+                if (sinkValues.Count > 0)
+                {
+                    targetFields.Add(string.Join(";", sinkValues));
+                }
+            }
+
+            if (mappingElement.TryGetProperty("TargetFields", out var targetFieldsElement) &&
+                targetFieldsElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in targetFieldsElement.EnumerateArray())
+                {
+                    var value = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        targetFields.Add(value);
+                    }
+                }
+            }
+
+            mappings.Add(new ContractFieldMappingModel
+            {
+                SourceFields = sourceFields,
+                TargetFields = targetFields,
+                Transformation = transformation,
+                Separator = mappingElement.TryGetProperty("Separator", out var separatorElement)
+                    ? separatorElement.GetString() ?? " "
+                    : " "
+            });
+        }
+
+        return mappings;
+    }
+
+    private static string GetStringProperty(JsonElement element, string propertyName, string fallback = "")
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return fallback;
+        }
+
+        return propertyElement.ValueKind == JsonValueKind.String
+            ? propertyElement.GetString() ?? fallback
+            : fallback;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

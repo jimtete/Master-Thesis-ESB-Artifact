@@ -95,6 +95,8 @@ public class ContractsExplorerService : IContractsExplorerService
         return request.ContractType switch
         {
             "ApiToApi" => BuildApiToApiContractJson(request, filePath),
+            "PortToApi" => BuildPortToApiContractJson(request, filePath),
+            "FileToApi" => BuildFileToApiContractJson(request, filePath),
             _ => throw new NotSupportedException($"Contract type '{request.ContractType}' is not supported yet.")
         };
     }
@@ -103,37 +105,8 @@ public class ContractsExplorerService : IContractsExplorerService
     {
         var contractId = Path.GetFileNameWithoutExtension(filePath);
 
-        var businessKeyFields = string.IsNullOrWhiteSpace(request.BusinessKeyField)
-            ? new[] { "id" }
-            : request.BusinessKeyField
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(static x => !string.IsNullOrWhiteSpace(x))
-                .ToArray();
-
-        if (businessKeyFields.Length == 0)
-        {
-            businessKeyFields = new[] { "id" };
-        }
-
-        var mappings = request.Mappings is { Count: > 0 }
-            ? request.Mappings
-                .Select(BuildApiFieldMapping)
-                .Where(static x => x is not null)
-                .ToArray()
-            : Array.Empty<object>();
-
-        var effectiveMappings = mappings.Length > 0
-            ? mappings
-            : new object[]
-            {
-                new
-                {
-                    SourceFieldName = "id",
-                    SinkFieldName = "id",
-                    TransformationType = "Direct",
-                    Separator = " "
-                }
-            };
+        var businessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField);
+        var effectiveMappings = BuildEffectiveMappings(request.Mappings);
 
         var sourceEndpoint = string.IsNullOrWhiteSpace(request.SourceEndpoint)
             ? "http://localhost:5001/source"
@@ -143,13 +116,8 @@ public class ContractsExplorerService : IContractsExplorerService
             ? "http://localhost:5002/sink"
             : request.SinkEndpoint.Trim();
 
-        var sourceMethod = string.IsNullOrWhiteSpace(request.SourceMethod)
-            ? "GET"
-            : request.SourceMethod.Trim().ToUpperInvariant();
-
-        var sinkMethod = string.IsNullOrWhiteSpace(request.SinkMethod)
-            ? "POST"
-            : request.SinkMethod.Trim().ToUpperInvariant();
+        var sourceMethod = NormalizeMethod(request.SourceMethod, "GET");
+        var sinkMethod = NormalizeMethod(request.SinkMethod, "POST");
 
         var document = new
         {
@@ -182,6 +150,194 @@ public class ContractsExplorerService : IContractsExplorerService
         return JsonSerializer.Serialize(document, JsonOptions);
     }
 
+    private static string BuildPortToApiContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+        var effectiveMappings = BuildEffectiveMappings(request.Mappings);
+
+        var listenerPath = string.IsNullOrWhiteSpace(request.ListenerPath)
+            ? "/incoming"
+            : request.ListenerPath.Trim();
+
+        if (!listenerPath.StartsWith('/'))
+        {
+            listenerPath = "/" + listenerPath;
+        }
+
+        var listenerMethod = NormalizeMethod(request.ListenerMethod, "POST");
+        var sinkEndpoint = string.IsNullOrWhiteSpace(request.SinkEndpoint)
+            ? "http://localhost:5002/sink"
+            : request.SinkEndpoint.Trim();
+        var sinkMethod = NormalizeMethod(request.SinkMethod, "POST");
+
+        var document = new
+        {
+            PortToApi = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "PortToApi",
+                Listener = new
+                {
+                    Path = listenerPath,
+                    Method = listenerMethod
+                },
+                Sink = new
+                {
+                    Method = sinkMethod,
+                    Endpoint = sinkEndpoint
+                },
+                Request = (object?)null,
+                Mappings = effectiveMappings
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string BuildFileToApiContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+        var effectiveMappings = BuildEffectiveMappings(request.Mappings);
+
+        var directory = string.IsNullOrWhiteSpace(request.FilePath)
+            ? @"C:\Temp"
+            : request.FilePath.Trim();
+
+        var searchPattern = NormalizeSearchPattern(request.FileType);
+        var sinkEndpoint = string.IsNullOrWhiteSpace(request.SinkEndpoint)
+            ? "http://localhost:5002/sink"
+            : request.SinkEndpoint.Trim();
+        var sinkMethod = NormalizeMethod(request.SinkMethod, "POST");
+
+        var csvSourceFields = request.Mappings
+            .SelectMany(m => m.SourceFields ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var bindings = csvSourceFields.Select(field => new
+        {
+            Column = field,
+            Field = field,
+            Required = false,
+            DefaultValue = (string?)null
+        }).ToArray();
+
+        var document = new
+        {
+            FileToApi = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "FileToApi",
+                Source = new
+                {
+                    Directory = directory,
+                    SearchPattern = searchPattern,
+                    IncludeSubdirectories = false,
+                    ProcessedDirectory = Path.Combine(directory, "processed"),
+                    ErrorDirectory = Path.Combine(directory, "error")
+                },
+                Sink = new
+                {
+                    Method = sinkMethod,
+                    Endpoint = sinkEndpoint
+                },
+                Mappings = effectiveMappings,
+                Rules = new
+                {
+                    LoopCSV = new
+                    {
+                        Delimiter = ",",
+                        HasHeader = true,
+                        RequiredColumns = csvSourceFields,
+                        Bindings = bindings
+                    }
+                },
+                Request = (object?)null
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string[] BuildBusinessKeyFields(string businessKeyField)
+    {
+        var businessKeyFields = string.IsNullOrWhiteSpace(businessKeyField)
+            ? new[] { "id" }
+            : businessKeyField
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+
+        if (businessKeyFields.Length == 0)
+        {
+            businessKeyFields = new[] { "id" };
+        }
+
+        return businessKeyFields;
+    }
+
+    private static object[] BuildEffectiveMappings(List<ContractFieldMappingModel>? mappings)
+    {
+        var builtMappings = mappings is { Count: > 0 }
+            ? mappings
+                .Select(BuildApiFieldMapping)
+                .Where(static x => x is not null)
+                .Cast<object>()
+                .ToArray()
+            : Array.Empty<object>();
+
+        if (builtMappings.Length > 0)
+        {
+            return builtMappings;
+        }
+
+        return
+        [
+            new
+            {
+                SourceFieldName = "id",
+                SinkFieldName = "id",
+                TransformationType = "Direct",
+                Separator = " "
+            }
+        ];
+    }
+
+    private static string NormalizeMethod(string? method, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(method)
+            ? fallback
+            : method.Trim().ToUpperInvariant();
+    }
+
+    private static string NormalizeSearchPattern(string? fileType)
+    {
+        if (string.IsNullOrWhiteSpace(fileType))
+        {
+            return "*.csv";
+        }
+
+        var trimmed = fileType.Trim();
+
+        if (trimmed.Contains('*'))
+        {
+            return trimmed;
+        }
+
+        if (trimmed.StartsWith('.'))
+        {
+            return $"*{trimmed}";
+        }
+
+        return $"*.{trimmed.ToLowerInvariant()}";
+    }
+
     private static FileExplorerNode BuildDirectoryNode(string directoryPath)
     {
         var directoryInfo = new DirectoryInfo(directoryPath);
@@ -211,7 +367,7 @@ public class ContractsExplorerService : IContractsExplorerService
 
         return node;
     }
-    
+
     private static object? BuildApiFieldMapping(ContractFieldMappingModel mapping)
     {
         var transformationType = string.IsNullOrWhiteSpace(mapping.Transformation)
