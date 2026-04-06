@@ -128,11 +128,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 Enabled = true,
                 ContractType = "ApiToApi",
                 BusinessKeyFields = businessKeyFields,
-                Schedule = new
-                {
-                    Mode = "AdHoc",
-                    RunAt = DateTime.UtcNow
-                },
+                Schedule = BuildScheduleObject(request.Schedule),
                 Source = new
                 {
                     Method = sourceMethod,
@@ -180,6 +176,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 Enabled = true,
                 ContractType = "PortToApi",
                 BusinessKeyFields = businessKeyFields,
+                Schedule = BuildScheduleObject(request.Schedule),
                 Listener = new
                 {
                     Path = listenerPath,
@@ -236,6 +233,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 Name = request.Name.Trim(),
                 Enabled = true,
                 ContractType = "FileToApi",
+                Schedule = BuildScheduleObject(request.Schedule),
                 Source = new
                 {
                     Directory = directory,
@@ -309,6 +307,96 @@ public class ContractsExplorerService : IContractsExplorerService
                 Separator = " "
             }
         ];
+    }
+    
+    private static object BuildScheduleObject(ScheduleEditorRequest? schedule)
+    {
+        if (schedule is null)
+        {
+            return new
+            {
+                Mode = "Manual"
+            };
+        }
+
+        var mode = NormalizeScheduleMode(schedule.Mode);
+
+        return mode switch
+        {
+            "Manual" => new
+            {
+                Mode = "Manual"
+            },
+
+            "AdHoc" => new
+            {
+                Mode = "AdHoc",
+                RunAt = schedule.RunAt,
+                TimeZone = string.IsNullOrWhiteSpace(schedule.TimeZone)
+                    ? null
+                    : schedule.TimeZone.Trim()
+            },
+
+            "Interval" => new
+            {
+                Mode = "Interval",
+                Every = new
+                {
+                    Value = schedule.IntervalValue <= 0 ? 1 : schedule.IntervalValue,
+                    Unit = NormalizeIntervalUnit(schedule.IntervalUnit)
+                }
+            },
+
+            "Recurring" => new
+            {
+                Mode = "Recurring",
+                CronExpression = string.IsNullOrWhiteSpace(schedule.CronExpression)
+                    ? null
+                    : schedule.CronExpression.Trim(),
+                TimeZone = string.IsNullOrWhiteSpace(schedule.TimeZone)
+                    ? null
+                    : schedule.TimeZone.Trim()
+            },
+
+            _ => new
+            {
+                Mode = "Manual"
+            }
+        };
+    }
+
+    private static string NormalizeScheduleMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            return "Manual";
+        }
+
+        return mode.Trim() switch
+        {
+            "Manual" => "Manual",
+            "AdHoc" => "AdHoc",
+            "Interval" => "Interval",
+            "Recurring" => "Recurring",
+            _ => "Manual"
+        };
+    }
+
+    private static string NormalizeIntervalUnit(string? unit)
+    {
+        if (string.IsNullOrWhiteSpace(unit))
+        {
+            return "Minutes";
+        }
+
+        return unit.Trim() switch
+        {
+            "Seconds" => "Seconds",
+            "Minutes" => "Minutes",
+            "Hours" => "Hours",
+            "Days" => "Days",
+            _ => "Minutes"
+        };
     }
 
     private static string NormalizeMethod(string? method, string fallback)

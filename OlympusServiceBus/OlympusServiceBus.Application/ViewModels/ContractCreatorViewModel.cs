@@ -24,7 +24,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     private string _listenerMethod = "POST";
 
     private string _filePath = string.Empty;
-    private string _fileType = "Csv";
+    private string _fileType = "csv";
+    private ScheduleEditorRequest? _schedule;
 
     private bool _isEditMode;
     private string? _selectedContractFilePath;
@@ -59,6 +60,32 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     public bool IsPortToApi => string.Equals(ContractType, "PortToApi", StringComparison.OrdinalIgnoreCase);
     public bool IsFileToApi => string.Equals(ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase);
     public bool SupportsBusinessKey => IsApiToApi || IsPortToApi;
+
+    public bool HasSchedule => Schedule is not null;
+
+    public string ScheduleSummary
+    {
+        get
+        {
+            if (Schedule is null)
+            {
+                return "No schedule configured.";
+            }
+
+            return Schedule.Mode switch
+            {
+                "Manual" => "Manual execution",
+                "AdHoc" => Schedule.RunAt is not null
+                    ? $"AdHoc - {Schedule.RunAt.Value:yyyy-MM-dd HH:mm zzz}"
+                    : "AdHoc - missing date/time",
+                "Interval" => $"Every {Schedule.IntervalValue} {Schedule.IntervalUnit}",
+                "Recurring" => string.IsNullOrWhiteSpace(Schedule.CronExpression)
+                    ? "CRON - missing expression"
+                    : $"CRON - {Schedule.CronExpression}",
+                _ => $"Unknown schedule mode: {Schedule.Mode}"
+            };
+        }
+    }
 
     public string SourceEndpoint
     {
@@ -159,6 +186,19 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
     }
 
+    public ScheduleEditorRequest? Schedule
+    {
+        get => _schedule;
+        set
+        {
+            if (_schedule == value) return;
+            _schedule = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSchedule));
+            OnPropertyChanged(nameof(ScheduleSummary));
+        }
+    }
+
     public bool IsEditMode
     {
         get => _isEditMode;
@@ -220,6 +260,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             FilePath = FilePath.Trim(),
             FileType = FileType.Trim(),
 
+            Schedule = Schedule,
+
             Mappings = Mappings.ToList(),
         };
     }
@@ -243,7 +285,9 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         ListenerMethod = string.IsNullOrWhiteSpace(request.ListenerMethod) ? "POST" : request.ListenerMethod;
 
         FilePath = request.FilePath;
-        FileType = string.IsNullOrWhiteSpace(request.FileType) ? "Csv" : request.FileType;
+        FileType = string.IsNullOrWhiteSpace(request.FileType) ? "csv" : request.FileType;
+
+        Schedule = request.Schedule;
 
         Mappings.Clear();
 
@@ -303,7 +347,9 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         ListenerMethod = "POST";
 
         FilePath = string.Empty;
-        FileType = "Csv";
+        FileType = "csv";
+
+        Schedule = null;
 
         Mappings.Clear();
         Mappings.Add(new ContractFieldMappingModel

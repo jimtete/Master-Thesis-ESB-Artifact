@@ -154,6 +154,12 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (request.Schedule is null)
+        {
+            StatusMessage = "Please configure scheduling before saving the contract.";
+            return;
+        }
+
         var parentPath = ResolveTargetDirectoryPath();
         var previousFilePath = ContractCreator.SelectedContractFilePath;
 
