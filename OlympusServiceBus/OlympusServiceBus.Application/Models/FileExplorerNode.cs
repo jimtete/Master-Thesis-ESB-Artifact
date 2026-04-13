@@ -11,6 +11,9 @@ public class FileExplorerNode : INotifyPropertyChanged
     private bool _isDirectory;
     private bool _isExpanded;
     private bool _isSelected;
+    private string? _contractType;
+    private string? _scheduleMode;
+    private bool _canExecuteManually;
 
     public string Name
     {
@@ -83,6 +86,51 @@ public class FileExplorerNode : INotifyPropertyChanged
             }
 
             _isSelected = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? ContractType
+    {
+        get => _contractType;
+        set
+        {
+            if (_contractType == value)
+            {
+                return;
+            }
+
+            _contractType = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string? ScheduleMode
+    {
+        get => _scheduleMode;
+        set
+        {
+            if (_scheduleMode == value)
+            {
+                return;
+            }
+
+            _scheduleMode = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CanExecuteManually
+    {
+        get => _canExecuteManually;
+        set
+        {
+            if (_canExecuteManually == value)
+            {
+                return;
+            }
+
+            _canExecuteManually = value;
             OnPropertyChanged();
         }
     }

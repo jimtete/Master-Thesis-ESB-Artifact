@@ -307,7 +307,7 @@ public class ContractsExplorerService : IContractsExplorerService
             }
         ];
     }
-    
+
     private static object BuildScheduleObject(ScheduleEditorRequest? schedule)
     {
         if (schedule is null)
@@ -446,15 +446,86 @@ public class ContractsExplorerService : IContractsExplorerService
 
         foreach (var jsonFile in directoryInfo.GetFiles("*.json").OrderBy(f => f.Name))
         {
-            node.Children.Add(new FileExplorerNode
+            var fileNode = new FileExplorerNode
             {
                 Name = Path.GetFileNameWithoutExtension(jsonFile.Name),
                 FullPath = jsonFile.FullName,
                 IsDirectory = false,
-            });
+            };
+
+            ApplyContractMetadata(fileNode);
+            node.Children.Add(fileNode);
         }
 
         return node;
+    }
+
+    private static void ApplyContractMetadata(FileExplorerNode node)
+    {
+        if (node.IsDirectory || !File.Exists(node.FullPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(node.FullPath);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+
+            string? contractType = null;
+            JsonElement contractElement = default;
+
+            if (root.TryGetProperty("ApiToApi", out var apiToApiElement))
+            {
+                contractType = "ApiToApi";
+                contractElement = apiToApiElement;
+            }
+            else if (root.TryGetProperty("PortToApi", out var portToApiElement))
+            {
+                contractType = "PortToApi";
+                contractElement = portToApiElement;
+            }
+            else if (root.TryGetProperty("FileToApi", out var fileToApiElement))
+            {
+                contractType = "FileToApi";
+                contractElement = fileToApiElement;
+            }
+
+            if (contractType is null)
+            {
+                return;
+            }
+
+            node.ContractType = contractType;
+
+            var scheduleMode = "None";
+
+            if (contractElement.ValueKind == JsonValueKind.Object &&
+                contractElement.TryGetProperty("Schedule", out var scheduleElement) &&
+                scheduleElement.ValueKind == JsonValueKind.Object)
+            {
+                scheduleMode = GetStringProperty(scheduleElement, "Mode", "None");
+            }
+
+            node.ScheduleMode = scheduleMode;
+            node.CanExecuteManually =
+                (string.Equals(contractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(contractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(scheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            node.ContractType = null;
+            node.ScheduleMode = null;
+            node.CanExecuteManually = false;
+        }
     }
 
     private static object? BuildApiFieldMapping(ContractFieldMappingModel mapping)
@@ -506,5 +577,17 @@ public class ContractsExplorerService : IContractsExplorerService
 
             _ => null
         };
+    }
+
+    private static string GetStringProperty(JsonElement element, string propertyName, string fallback = "")
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return fallback;
+        }
+
+        return propertyElement.ValueKind == JsonValueKind.String
+            ? propertyElement.GetString() ?? fallback
+            : fallback;
     }
 }

@@ -125,6 +125,31 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         StatusMessage = "Contracts workspace loaded.";
     }
 
+    public Task ExecuteManualContractAsync(FileExplorerNode? node)
+    {
+        if (node is null)
+        {
+            StatusMessage = "No contract was selected for manual execution.";
+            return Task.CompletedTask;
+        }
+
+        if (node.IsDirectory)
+        {
+            StatusMessage = "Folders cannot be executed.";
+            return Task.CompletedTask;
+        }
+
+        if (!node.CanExecuteManually)
+        {
+            StatusMessage = $"Contract '{node.Name}' is not manually executable.";
+            return Task.CompletedTask;
+        }
+
+        SelectedNode = node;
+        StatusMessage = $"Manual execution requested for contract '{node.Name}'.";
+        return Task.CompletedTask;
+    }
+
     private async Task CreateDirectoryAsync()
     {
         if (string.IsNullOrWhiteSpace(NewDirectoryName))
@@ -360,7 +385,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
         return keys.Count > 0 ? string.Join(", ", keys) : "id";
     }
-    
+
     private static ScheduleEditorRequest? ParseScheduleRequest(JsonElement contractElement)
     {
         if (!contractElement.TryGetProperty("Schedule", out var scheduleElement) ||

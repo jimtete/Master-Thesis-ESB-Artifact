@@ -16,7 +16,26 @@
     <Window.Resources>
         <HierarchicalDataTemplate DataType="{x:Type models:FileExplorerNode}"
                                   ItemsSource="{Binding Children}">
-            <TextBlock Text="{Binding Name}" />
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right"
+                        Width="28"
+                        Height="24"
+                        Margin="8,0,0,0"
+                        Padding="0"
+                        FontWeight="Bold"
+                        Background="#2E7D32"
+                        Foreground="White"
+                        BorderBrush="#1B5E20"
+                        BorderThickness="1"
+                        Content="▶"
+                        ToolTip="Run manually"
+                        Visibility="{Binding CanExecuteManually, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Click="ExecuteContractButton_Click"
+                        CommandParameter="{Binding}" />
+
+                <TextBlock VerticalAlignment="Center"
+                           Text="{Binding Name}" />
+            </DockPanel>
         </HierarchicalDataTemplate>
 
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />

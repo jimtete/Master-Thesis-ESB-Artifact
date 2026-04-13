@@ -75,6 +75,19 @@ public partial class ConfiguratorWindow : Window
         _viewModel.StatusMessage = "Scheduling configuration updated.";
     }
 
+    private async void ExecuteContractButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement frameworkElement ||
+            frameworkElement.DataContext is not FileExplorerNode node)
+        {
+            return;
+        }
+
+        await _viewModel.ExecuteManualContractAsync(node);
+    }
+
     private void ClearSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.ClearContractSelectionCommand.Execute(null);
