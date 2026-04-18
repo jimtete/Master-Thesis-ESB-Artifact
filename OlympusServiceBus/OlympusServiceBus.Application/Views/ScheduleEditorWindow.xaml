@@ -1,0 +1,239 @@
+<Window x:Class="OlympusServiceBusApplication.Views.ScheduleEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Title="Configure Schedule"
+        Height="520"
+        Width="620"
+        MinHeight="520"
+        MinWidth="620"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+    </Window.Resources>
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="12" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Scheduling Configuration"
+                       FontSize="18"
+                       FontWeight="SemiBold" />
+            <TextBlock Margin="0,6,0,0"
+                       Text="Select one required scheduling mode for this contract."
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <GroupBox Grid.Row="2" Header="Mode">
+            <Grid Margin="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           VerticalAlignment="Center"
+                           Text="Scheduling Mode:" />
+
+                <ComboBox Grid.Column="1"
+                          SelectedValue="{Binding Mode, UpdateSourceTrigger=PropertyChanged}"
+                          SelectedValuePath="Content"
+                          MinHeight="30">
+                    <ComboBoxItem Content="Manual" />
+                    <ComboBoxItem Content="AdHoc" />
+                    <ComboBoxItem Content="Interval" />
+                    <ComboBoxItem Content="Recurring" />
+                </ComboBox>
+            </Grid>
+        </GroupBox>
+
+        <Border Grid.Row="4"
+                BorderBrush="#D0D0D0"
+                BorderThickness="1"
+                CornerRadius="4"
+                Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="12" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Manual -->
+                <Border Grid.Row="0"
+                        Visibility="{Binding IsManual, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Background="#F8FFF8"
+                        BorderBrush="#B6D7A8"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="12">
+                    <TextBlock Text="Manual mode selected. This contract will only run when manually triggered."
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <!-- AdHoc -->
+                <Grid Grid.Row="0"
+                      Visibility="{Binding IsAdHoc, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="100" />
+                            <ColumnDefinition Width="120" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="Run Date:" />
+                        <DatePicker Grid.Column="1"
+                                    SelectedDate="{Binding AdHocDate, UpdateSourceTrigger=PropertyChanged}" />
+
+                        <TextBlock Grid.Column="2"
+                                   Margin="16,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Text="Time:" />
+                        <TextBox Grid.Column="3"
+                                 Margin="8,0,0,0"
+                                 Text="{Binding AdHocTime, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Use HH:mm format, for example 14:30" />
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="Time Zone:" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding TimeZone, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Example: UTC or Europe/Copenhagen" />
+                    </Grid>
+                </Grid>
+
+                <!-- Interval -->
+                <Grid Grid.Row="0"
+                      Visibility="{Binding IsInterval, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="160" />
+                        <ColumnDefinition Width="120" />
+                        <ColumnDefinition Width="100" />
+                        <ColumnDefinition Width="160" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               VerticalAlignment="Center"
+                               Text="Run Every:" />
+
+                    <TextBox Grid.Column="1"
+                             Text="{Binding IntervalValue, UpdateSourceTrigger=PropertyChanged}" />
+
+                    <TextBlock Grid.Column="2"
+                               Margin="16,0,0,0"
+                               VerticalAlignment="Center"
+                               Text="Unit:" />
+
+                    <ComboBox Grid.Column="3"
+                              Margin="8,0,0,0"
+                              SelectedValue="{Binding IntervalUnit, UpdateSourceTrigger=PropertyChanged}"
+                              SelectedValuePath="Content">
+                        <ComboBoxItem Content="Seconds" />
+                        <ComboBoxItem Content="Minutes" />
+                        <ComboBoxItem Content="Hours" />
+                        <ComboBoxItem Content="Days" />
+                    </ComboBox>
+                </Grid>
+
+                <!-- CRON / Recurring -->
+                <Grid Grid.Row="0"
+                      Visibility="{Binding IsRecurring, Converter={StaticResource BoolToVisibilityConverter}}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="12" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="CRON Expression:" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding CronExpression, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Example: 0 */15 * * * *" />
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="160" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0"
+                                   VerticalAlignment="Center"
+                                   Text="Time Zone:" />
+                        <TextBox Grid.Column="1"
+                                 Text="{Binding TimeZone, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Example: UTC or Europe/Copenhagen" />
+                    </Grid>
+                </Grid>
+
+                <Border Grid.Row="6"
+                        Background="#F5F5F5"
+                        BorderBrush="#D0D0D0"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="10">
+                    <TextBlock Text="{Binding ValidationMessage}"
+                               TextWrapping="Wrap" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="6"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Width="110"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Content="Cancel"
+                    Click="CancelButton_Click" />
+
+            <Button Width="110"
+                    Height="32"
+                    Content="Save"
+                    IsEnabled="{Binding IsValid}"
+                    Click="SaveButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

@@ -95,6 +95,11 @@ public class ContractsExplorerService : IContractsExplorerService
         return request.ContractType switch
         {
             "ApiToApi" => BuildApiToApiContractJson(request, filePath),
+            "ApiToFile" => BuildApiToFileContractJson(request, filePath),
+            "FileToApi" => BuildFileToApiContractJson(request, filePath),
+            "FileToFile" => BuildFileToFileContractJson(request, filePath),
+            "PortToApi" => BuildPortToApiContractJson(request, filePath),
+            "PortToFile" => BuildPortToFileContractJson(request, filePath),
             _ => throw new NotSupportedException($"Contract type '{request.ContractType}' is not supported yet.")
         };
     }
@@ -103,53 +108,8 @@ public class ContractsExplorerService : IContractsExplorerService
     {
         var contractId = Path.GetFileNameWithoutExtension(filePath);
 
-        var businessKeyFields = string.IsNullOrWhiteSpace(request.BusinessKeyField)
-            ? new[] { "id" }
-            : request.BusinessKeyField
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(static x => !string.IsNullOrWhiteSpace(x))
-                .ToArray();
-
-        if (businessKeyFields.Length == 0)
-        {
-            businessKeyFields = new[] { "id" };
-        }
-
-        var mappings = request.Mappings is { Count: > 0 }
-            ? request.Mappings
-                .Select(BuildApiFieldMapping)
-                .Where(static x => x is not null)
-                .ToArray()
-            : Array.Empty<object>();
-
-        var effectiveMappings = mappings.Length > 0
-            ? mappings
-            : new object[]
-            {
-                new
-                {
-                    SourceFieldName = "id",
-                    SinkFieldName = "id",
-                    TransformationType = "Direct",
-                    Separator = " "
-                }
-            };
-
-        var sourceEndpoint = string.IsNullOrWhiteSpace(request.SourceEndpoint)
-            ? "http://localhost:5001/source"
-            : request.SourceEndpoint.Trim();
-
-        var sinkEndpoint = string.IsNullOrWhiteSpace(request.SinkEndpoint)
-            ? "http://localhost:5002/sink"
-            : request.SinkEndpoint.Trim();
-
-        var sourceMethod = string.IsNullOrWhiteSpace(request.SourceMethod)
-            ? "GET"
-            : request.SourceMethod.Trim().ToUpperInvariant();
-
-        var sinkMethod = string.IsNullOrWhiteSpace(request.SinkMethod)
-            ? "POST"
-            : request.SinkMethod.Trim().ToUpperInvariant();
+        var businessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField);
+        var mappings = BuildMappings(request.Mappings);
 
         var document = new
         {
@@ -160,26 +120,437 @@ public class ContractsExplorerService : IContractsExplorerService
                 Enabled = true,
                 ContractType = "ApiToApi",
                 BusinessKeyFields = businessKeyFields,
-                Schedule = new
-                {
-                    Mode = "AdHoc",
-                    RunAt = DateTime.UtcNow
-                },
-                Source = new
-                {
-                    Method = sourceMethod,
-                    Endpoint = sourceEndpoint
-                },
-                Sink = new
-                {
-                    Method = sinkMethod,
-                    Endpoint = sinkEndpoint
-                },
-                Mappings = effectiveMappings
+                Schedule = BuildScheduleObject(request.Schedule),
+                Source = BuildApiSource(request),
+                Sink = BuildApiSink(request),
+                Mappings = mappings
             }
         };
 
         return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string BuildApiToFileContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+
+        var businessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField);
+        var mappings = BuildMappings(request.Mappings);
+
+        var document = new
+        {
+            ApiToFile = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "ApiToFile",
+                BusinessKeyFields = businessKeyFields,
+                Schedule = BuildScheduleObject(request.Schedule),
+                Source = BuildApiSource(request),
+                Sink = BuildFileSink(request),
+                Mappings = mappings
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string BuildPortToApiContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+        var mappings = BuildMappings(request.Mappings);
+        var businessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField);
+
+        var document = new
+        {
+            PortToApi = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "PortToApi",
+                BusinessKeyFields = businessKeyFields,
+                Listener = BuildPortListener(request),
+                Sink = BuildApiSink(request),
+                Request = (object?)null,
+                Mappings = mappings
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string BuildPortToFileContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+        var mappings = BuildMappings(request.Mappings);
+        var businessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField);
+
+        var document = new
+        {
+            PortToFile = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "PortToFile",
+                BusinessKeyFields = businessKeyFields,
+                Listener = BuildPortListener(request),
+                Sink = BuildFileSink(request),
+                Request = (object?)null,
+                Mappings = mappings
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string BuildFileToApiContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+        var mappings = BuildMappings(request.Mappings);
+
+        var document = new
+        {
+            FileToApi = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "FileToApi",
+                BusinessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField),
+                Schedule = BuildScheduleObject(request.Schedule),
+                Source = BuildFileSource(request),
+                Sink = BuildApiSink(request),
+                Mappings = mappings,
+                Rules = BuildFileRules(request.Mappings),
+                Request = (object?)null
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string BuildFileToFileContractJson(CreateContractRequest request, string filePath)
+    {
+        var contractId = Path.GetFileNameWithoutExtension(filePath);
+        var mappings = BuildMappings(request.Mappings);
+
+        var document = new
+        {
+            FileToFile = new
+            {
+                ContractId = contractId,
+                Name = request.Name.Trim(),
+                Enabled = true,
+                ContractType = "FileToFile",
+                BusinessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField),
+                Schedule = BuildScheduleObject(request.Schedule),
+                Source = BuildFileSource(request),
+                Sink = BuildFileSink(request),
+                Mappings = mappings,
+                Rules = BuildFileRules(request.Mappings),
+                Request = (object?)null
+            }
+        };
+
+        return JsonSerializer.Serialize(document, JsonOptions);
+    }
+
+    private static string[] BuildBusinessKeyFields(string businessKeyField)
+    {
+        var businessKeyFields = string.IsNullOrWhiteSpace(businessKeyField)
+            ? new[] { "id" }
+            : businessKeyField
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static x => !string.IsNullOrWhiteSpace(x))
+                .ToArray();
+
+        if (businessKeyFields.Length == 0)
+        {
+            businessKeyFields = new[] { "id" };
+        }
+
+        return businessKeyFields;
+    }
+
+    private static object BuildApiSource(CreateContractRequest request)
+    {
+        var sourceEndpoint = string.IsNullOrWhiteSpace(request.SourceEndpoint)
+            ? "http://localhost:5001/source"
+            : request.SourceEndpoint.Trim();
+
+        return new
+        {
+            Endpoint = sourceEndpoint,
+            Method = NormalizeMethod(request.SourceMethod, "GET")
+        };
+    }
+
+    private static object BuildApiSink(CreateContractRequest request)
+    {
+        var sinkEndpoint = string.IsNullOrWhiteSpace(request.SinkEndpoint)
+            ? "http://localhost:5002/sink"
+            : request.SinkEndpoint.Trim();
+
+        return new
+        {
+            Endpoint = sinkEndpoint,
+            Method = NormalizeMethod(request.SinkMethod, "POST")
+        };
+    }
+
+    private static object BuildPortListener(CreateContractRequest request)
+    {
+        var listenerPath = string.IsNullOrWhiteSpace(request.ListenerPath)
+            ? "/incoming"
+            : request.ListenerPath.Trim();
+
+        if (!listenerPath.StartsWith('/'))
+        {
+            listenerPath = "/" + listenerPath;
+        }
+
+        return new
+        {
+            Path = listenerPath,
+            Method = NormalizeMethod(request.ListenerMethod, "POST")
+        };
+    }
+
+    private static object BuildFileSource(CreateContractRequest request)
+    {
+        var directory = string.IsNullOrWhiteSpace(request.SourceDirectory)
+            ? @"C:\Temp"
+            : request.SourceDirectory.Trim();
+
+        var processedDirectory = string.IsNullOrWhiteSpace(request.SourceProcessedDirectory)
+            ? Path.Combine(directory, "processed")
+            : request.SourceProcessedDirectory.Trim();
+
+        var errorDirectory = string.IsNullOrWhiteSpace(request.SourceErrorDirectory)
+            ? Path.Combine(directory, "error")
+            : request.SourceErrorDirectory.Trim();
+
+        return new
+        {
+            Directory = directory,
+            SearchPattern = NormalizeSearchPattern(request.SourceSearchPattern),
+            IncludeSubdirectories = request.SourceIncludeSubdirectories,
+            ProcessedDirectory = processedDirectory,
+            ErrorDirectory = errorDirectory
+        };
+    }
+
+    private static object BuildFileSink(CreateContractRequest request)
+    {
+        var directory = string.IsNullOrWhiteSpace(request.SinkDirectory)
+            ? @"C:\Temp\out"
+            : request.SinkDirectory.Trim();
+
+        return new
+        {
+            Directory = directory,
+            FileExtension = NormalizeFileExtension(request.SinkFileExtension)
+        };
+    }
+
+    private static object BuildFileRules(List<ContractFieldMappingModel>? mappings)
+    {
+        var csvSourceFields = (mappings ?? [])
+            .SelectMany(m => m.SourceFields ?? [])
+            .Where(static x => !string.IsNullOrWhiteSpace(x))
+            .Select(static x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var bindings = csvSourceFields.Select(field => new
+        {
+            Column = field,
+            Field = field,
+            Required = false,
+            DefaultValue = (string?)null
+        }).ToArray();
+
+        return new
+        {
+            LoopCSV = new
+            {
+                Delimiter = ",",
+                HasHeader = true,
+                RequiredColumns = csvSourceFields,
+                Bindings = bindings
+            }
+        };
+    }
+
+    private static object[] BuildMappings(List<ContractFieldMappingModel>? mappings)
+    {
+        var builtMappings = mappings is { Count: > 0 }
+            ? mappings
+                .Select(BuildApiFieldMapping)
+                .Where(static x => x is not null)
+                .Cast<object>()
+                .ToArray()
+            : Array.Empty<object>();
+
+        if (builtMappings.Length > 0)
+        {
+            return builtMappings;
+        }
+
+        return
+        [
+            new
+            {
+                SourceFieldName = "id",
+                SinkFieldName = "id",
+                TransformationType = "Direct",
+                Separator = " "
+            }
+        ];
+    }
+
+    private static object BuildScheduleObject(ScheduleEditorRequest? schedule)
+    {
+        if (schedule is null)
+        {
+            return new
+            {
+                Mode = "Manual"
+            };
+        }
+
+        var mode = NormalizeScheduleMode(schedule.Mode);
+
+        return mode switch
+        {
+            "Manual" => new
+            {
+                Mode = "Manual"
+            },
+
+            "AdHoc" => new
+            {
+                Mode = "AdHoc",
+                RunAt = schedule.RunAt,
+                TimeZone = string.IsNullOrWhiteSpace(schedule.TimeZone)
+                    ? null
+                    : schedule.TimeZone.Trim()
+            },
+
+            "Interval" => new
+            {
+                Mode = "Interval",
+                Every = new
+                {
+                    Value = schedule.IntervalValue <= 0 ? 1 : schedule.IntervalValue,
+                    Unit = NormalizeIntervalUnit(schedule.IntervalUnit)
+                }
+            },
+
+            "Recurring" => new
+            {
+                Mode = "Recurring",
+                CronExpression = string.IsNullOrWhiteSpace(schedule.CronExpression)
+                    ? null
+                    : schedule.CronExpression.Trim(),
+                TimeZone = string.IsNullOrWhiteSpace(schedule.TimeZone)
+                    ? null
+                    : schedule.TimeZone.Trim()
+            },
+
+            _ => new
+            {
+                Mode = "Manual"
+            }
+        };
+    }
+
+    private static string NormalizeScheduleMode(string? mode)
+    {
+        if (string.IsNullOrWhiteSpace(mode))
+        {
+            return "Manual";
+        }
+
+        return mode.Trim() switch
+        {
+            "Manual" => "Manual",
+            "AdHoc" => "AdHoc",
+            "Interval" => "Interval",
+            "Recurring" => "Recurring",
+            _ => "Manual"
+        };
+    }
+
+    private static string NormalizeIntervalUnit(string? unit)
+    {
+        if (string.IsNullOrWhiteSpace(unit))
+        {
+            return "Minutes";
+        }
+
+        return unit.Trim() switch
+        {
+            "Seconds" => "Seconds",
+            "Minutes" => "Minutes",
+            "Hours" => "Hours",
+            "Days" => "Days",
+            _ => "Minutes"
+        };
+    }
+
+    private static string NormalizeMethod(string? method, string fallback)
+    {
+        return string.IsNullOrWhiteSpace(method)
+            ? fallback
+            : method.Trim().ToUpperInvariant();
+    }
+
+    private static string NormalizeFileExtension(string? fileExtension)
+    {
+        if (string.IsNullOrWhiteSpace(fileExtension))
+        {
+            return "csv";
+        }
+
+        var trimmed = fileExtension.Trim();
+
+        if (trimmed.StartsWith("*."))
+        {
+            return trimmed[2..].ToLowerInvariant();
+        }
+
+        if (trimmed.StartsWith('.'))
+        {
+            return trimmed[1..].ToLowerInvariant();
+        }
+
+        return trimmed.ToLowerInvariant();
+    }
+
+    private static string NormalizeSearchPattern(string? searchPattern)
+    {
+        if (string.IsNullOrWhiteSpace(searchPattern))
+        {
+            return "*.csv";
+        }
+
+        var trimmed = searchPattern.Trim();
+
+        if (trimmed.Contains('*'))
+        {
+            return trimmed;
+        }
+
+        if (trimmed.StartsWith('.'))
+        {
+            return $"*{trimmed}";
+        }
+
+        return $"*.{trimmed.ToLowerInvariant()}";
     }
 
     private static FileExplorerNode BuildDirectoryNode(string directoryPath)
@@ -201,17 +572,108 @@ public class ContractsExplorerService : IContractsExplorerService
 
         foreach (var jsonFile in directoryInfo.GetFiles("*.json").OrderBy(f => f.Name))
         {
-            node.Children.Add(new FileExplorerNode
+            var fileNode = new FileExplorerNode
             {
                 Name = Path.GetFileNameWithoutExtension(jsonFile.Name),
                 FullPath = jsonFile.FullName,
                 IsDirectory = false,
-            });
+            };
+
+            ApplyContractMetadata(fileNode);
+            node.Children.Add(fileNode);
         }
 
         return node;
     }
-    
+
+    private static void ApplyContractMetadata(FileExplorerNode node)
+    {
+        if (node.IsDirectory || !File.Exists(node.FullPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(node.FullPath);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return;
+            }
+
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+
+            string? contractType = null;
+            JsonElement contractElement = default;
+
+            if (root.TryGetProperty("ApiToApi", out var apiToApiElement))
+            {
+                contractType = "ApiToApi";
+                contractElement = apiToApiElement;
+            }
+            else if (root.TryGetProperty("ApiToFile", out var apiToFileElement))
+            {
+                contractType = "ApiToFile";
+                contractElement = apiToFileElement;
+            }
+            else if (root.TryGetProperty("FileToApi", out var fileToApiElement))
+            {
+                contractType = "FileToApi";
+                contractElement = fileToApiElement;
+            }
+            else if (root.TryGetProperty("FileToFile", out var fileToFileElement))
+            {
+                contractType = "FileToFile";
+                contractElement = fileToFileElement;
+            }
+            else if (root.TryGetProperty("PortToApi", out var portToApiElement))
+            {
+                contractType = "PortToApi";
+                contractElement = portToApiElement;
+            }
+            else if (root.TryGetProperty("PortToFile", out var portToFileElement))
+            {
+                contractType = "PortToFile";
+                contractElement = portToFileElement;
+            }
+
+            if (contractType is null)
+            {
+                return;
+            }
+
+            node.ContractType = contractType;
+
+            var enabled = contractElement.ValueKind != JsonValueKind.Object ||
+                          GetBoolProperty(contractElement, "Enabled", true);
+            var scheduleMode = "None";
+
+            if (contractElement.ValueKind == JsonValueKind.Object &&
+                contractElement.TryGetProperty("Schedule", out var scheduleElement) &&
+                scheduleElement.ValueKind == JsonValueKind.Object)
+            {
+                scheduleMode = GetStringProperty(scheduleElement, "Mode", "None");
+            }
+
+            node.ScheduleMode = scheduleMode;
+            node.CanExecuteManually =
+                enabled &&
+                (string.Equals(contractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(contractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(contractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(contractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(scheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            node.ContractType = null;
+            node.ScheduleMode = null;
+            node.CanExecuteManually = false;
+        }
+    }
+
     private static object? BuildApiFieldMapping(ContractFieldMappingModel mapping)
     {
         var transformationType = string.IsNullOrWhiteSpace(mapping.Transformation)
@@ -232,6 +694,10 @@ public class ContractsExplorerService : IContractsExplorerService
         var separator = string.IsNullOrWhiteSpace(mapping.Separator)
             ? " "
             : mapping.Separator;
+
+        var expression = string.IsNullOrWhiteSpace(mapping.Expression)
+            ? null
+            : mapping.Expression.Trim();
 
         return transformationType switch
         {
@@ -259,7 +725,43 @@ public class ContractsExplorerService : IContractsExplorerService
                 Separator = separator
             },
 
+            "Expression" when sourceFields.Length > 0 && targetFields.Length > 0 && !string.IsNullOrWhiteSpace(expression) => new
+            {
+                SourceFields = sourceFields,
+                SinkFields = targetFields,
+                TransformationType = "Expression",
+                Separator = separator,
+                Expression = expression
+            },
+
             _ => null
+        };
+    }
+
+    private static string GetStringProperty(JsonElement element, string propertyName, string fallback = "")
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return fallback;
+        }
+
+        return propertyElement.ValueKind == JsonValueKind.String
+            ? propertyElement.GetString() ?? fallback
+            : fallback;
+    }
+
+    private static bool GetBoolProperty(JsonElement element, string propertyName, bool fallback = false)
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return fallback;
+        }
+
+        return propertyElement.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => fallback
         };
     }
 }

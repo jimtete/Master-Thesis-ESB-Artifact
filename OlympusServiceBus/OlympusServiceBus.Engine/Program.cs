@@ -8,6 +8,7 @@ using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Execution.FileToFile;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Execution.PortToFile;
+using OlympusServiceBus.Engine.Execution.Transformation;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.Engine.Scheduling;
 using OlympusServiceBus.Engine.Services;
@@ -69,6 +70,9 @@ builder.Services.AddHostedService<ApiToFileWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
 builder.Services.AddHostedService<FileToFileWorker>();
 builder.Services.AddHostedService<WebHostReloadOnStartup>();
+
+builder.Services.AddSingleton<IExpressionEvaluator, ExpressionEvaluator>();
+builder.Services.AddSingleton<IMappingEngine, MappingEngine>();
 
 builder.Services.AddDbContext<RuntimeStateDbContext>(options =>
     options.UseSqlite($"Data Source={runtimeStateDbPath}"));

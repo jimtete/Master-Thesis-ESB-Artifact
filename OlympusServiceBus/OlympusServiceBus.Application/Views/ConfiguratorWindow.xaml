@@ -7,16 +7,36 @@
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         mc:Ignorable="d"
         Title="Olympus Service Bus Configurator"
-        Height="800"
+        Height="850"
         Width="1200"
-        MinHeight="800"
+        MinHeight="850"
         MinWidth="1200"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
         <HierarchicalDataTemplate DataType="{x:Type models:FileExplorerNode}"
                                   ItemsSource="{Binding Children}">
-            <TextBlock Text="{Binding Name}" />
+            <DockPanel LastChildFill="True">
+                <Button DockPanel.Dock="Right"
+                        Width="28"
+                        Height="24"
+                        Margin="8,0,0,0"
+                        Padding="0"
+                        Background="#2E7D32"
+                        Foreground="White"
+                        BorderBrush="#1B5E20"
+                        BorderThickness="1"
+                        Content="&#x25B6;"
+                        ToolTip="Run manually"
+                        Visibility="{Binding CanExecuteManually, Converter={StaticResource BoolToVisibilityConverter}}"
+                        Click="ExecuteContractButton_Click"
+                        CommandParameter="{Binding}" />
+
+                <TextBlock VerticalAlignment="Center"
+                           Text="{Binding Name}" />
+            </DockPanel>
         </HierarchicalDataTemplate>
     </Window.Resources>
 
@@ -126,6 +146,8 @@
                             <RowDefinition Height="12"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="12"/>
                             <RowDefinition Height="Auto"/>
@@ -153,10 +175,17 @@
                                       SelectedValue="{Binding ContractCreator.ContractType, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedValuePath="Content">
                                 <ComboBoxItem Content="ApiToApi"/>
+                                <ComboBoxItem Content="ApiToFile"/>
+                                <ComboBoxItem Content="FileToApi"/>
+                                <ComboBoxItem Content="FileToFile"/>
+                                <ComboBoxItem Content="PortToApi"/>
+                                <ComboBoxItem Content="PortToFile"/>
                             </ComboBox>
                         </Grid>
 
-                        <Grid Grid.Row="2">
+                        <!-- API Source -->
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding ContractCreator.UsesApiSource, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
@@ -179,7 +208,96 @@
                                      Text="{Binding ContractCreator.SourceMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <Grid Grid.Row="4">
+                        <!-- Port Source -->
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding ContractCreator.UsesPortSource, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Listener Path:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.ListenerPath, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Method:"/>
+                            <TextBox Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.ListenerMethod, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <!-- File Source -->
+                        <Grid Grid.Row="2"
+                              Visibility="{Binding ContractCreator.UsesFileSource, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="8"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="8"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Source Directory:"/>
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SourceDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Search Pattern:"/>
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SourceSearchPattern, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <CheckBox Grid.Row="2"
+                                      Grid.Column="1"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Content="Include subdirectories"
+                                      IsChecked="{Binding ContractCreator.SourceIncludeSubdirectories, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Row="4"
+                                       Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Processed Dir:"/>
+                            <TextBox Grid.Row="4"
+                                     Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SourceProcessedDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Row="4"
+                                       Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Error Dir:"/>
+                            <TextBox Grid.Row="4"
+                                     Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SourceErrorDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <!-- API Sink -->
+                        <Grid Grid.Row="4"
+                              Visibility="{Binding ContractCreator.UsesApiSink, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
@@ -202,7 +320,34 @@
                                      Text="{Binding ContractCreator.SinkMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <Grid Grid.Row="6">
+                        <!-- File Sink -->
+                        <Grid Grid.Row="4"
+                              Visibility="{Binding ContractCreator.UsesFileSink, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Sink Directory:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SinkDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="File Extension:"/>
+                            <TextBox Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SinkFileExtension, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <!-- Business Key -->
+                        <Grid Grid.Row="6"
+                              Visibility="{Binding ContractCreator.SupportsBusinessKey, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="220"/>
@@ -217,7 +362,33 @@
                                      Text="{Binding ContractCreator.BusinessKeyField, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <GroupBox Grid.Row="8" Header="Mappings">
+                        <!-- Scheduling -->
+                        <GroupBox Grid.Row="8"
+                                  Header="Scheduling (Required)"
+                                  Visibility="{Binding ContractCreator.SupportsScheduling, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid Margin="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Text="{Binding ContractCreator.ScheduleSummary}"
+                                           TextWrapping="Wrap" />
+
+                                <StackPanel Grid.Row="2"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Left">
+                                    <Button Width="160"
+                                            Height="30"
+                                            Content="Configure Schedule"
+                                            Click="ConfigureScheduleButton_Click" />
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+
+                        <GroupBox Grid.Row="10" Header="Mappings">
                             <DockPanel Margin="8">
                                 <Button DockPanel.Dock="Top"
                                         Width="120"
@@ -235,11 +406,13 @@
                                           MinHeight="240">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Source Fields"
-                                                            Binding="{Binding SourceFieldsText, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="*"/>
+                                                            Binding="{Binding SourceFieldsText, UpdateSourceTrigger=LostFocus}"
+                                                            Width="*" />
+
                                         <DataGridTextColumn Header="Target Fields"
-                                                            Binding="{Binding TargetFieldsText, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="*"/>
+                                                            Binding="{Binding TargetFieldsText, UpdateSourceTrigger=LostFocus}"
+                                                            Width="*" />
+
                                         <DataGridComboBoxColumn Header="Transformation"
                                                                 SelectedItemBinding="{Binding Transformation, UpdateSourceTrigger=PropertyChanged}"
                                                                 Width="140">
@@ -248,18 +421,53 @@
                                                     <sys:String>Direct</sys:String>
                                                     <sys:String>Join</sys:String>
                                                     <sys:String>Split</sys:String>
+                                                    <sys:String>Expression</sys:String>
                                                 </x:Array>
                                             </DataGridComboBoxColumn.ItemsSource>
                                         </DataGridComboBoxColumn>
+
                                         <DataGridTextColumn Header="Separator"
                                                             Binding="{Binding Separator, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="100"/>
+                                                            Width="100" />
+
+                                        <DataGridTemplateColumn Header="Expression" Width="2*">
+                                            <DataGridTemplateColumn.CellStyle>
+                                                <Style TargetType="DataGridCell">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="ToolTip" Value="Select Expression as the transformation type to edit this field." />
+
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Transformation}" Value="Expression">
+                                                            <Setter Property="IsEnabled" Value="True" />
+                                                            <Setter Property="ToolTip" Value="{x:Null}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DataGridTemplateColumn.CellStyle>
+
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Expression}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="Gray" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Expression, UpdateSourceTrigger=PropertyChanged}"
+                                                             VerticalContentAlignment="Center" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+
                                         <DataGridTemplateColumn Header="Actions" Width="110">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <Button Content="Remove"
                                                             Command="{Binding DataContext.ContractCreator.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}"/>
+                                                            CommandParameter="{Binding}" />
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>
@@ -268,7 +476,7 @@
                             </DockPanel>
                         </GroupBox>
 
-                        <StackPanel Grid.Row="10"
+                        <StackPanel Grid.Row="12"
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Right"
                                     Margin="0,12,0,0">

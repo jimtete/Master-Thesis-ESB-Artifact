@@ -7,6 +7,9 @@ public class ContractFieldMappingModel
     public string Transformation { get; set; } = "Direct";
     public string Separator { get; set; } = " ";
 
+    // Used when Transformation == "Expression"
+    public string Expression { get; set; } = string.Empty;
+
     public string SourceFieldsText
     {
         get => string.Join(", ", SourceFields);

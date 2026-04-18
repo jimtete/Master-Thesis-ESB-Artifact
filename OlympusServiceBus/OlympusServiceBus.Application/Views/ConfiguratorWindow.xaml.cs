@@ -57,6 +57,37 @@ public partial class ConfiguratorWindow : Window
         e.Handled = false;
     }
 
+    private void ConfigureScheduleButton_Click(object sender, RoutedEventArgs e)
+    {
+        var scheduleWindow = new ScheduleEditorWindow(_viewModel.ContractCreator.Schedule)
+        {
+            Owner = this
+        };
+
+        var result = scheduleWindow.ShowDialog();
+
+        if (result != true || scheduleWindow.ResultSchedule is null)
+        {
+            return;
+        }
+
+        _viewModel.ContractCreator.Schedule = scheduleWindow.ResultSchedule;
+        _viewModel.StatusMessage = "Scheduling configuration updated.";
+    }
+
+    private async void ExecuteContractButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is not FrameworkElement frameworkElement ||
+            frameworkElement.DataContext is not FileExplorerNode node)
+        {
+            return;
+        }
+
+        await _viewModel.ExecuteManualContractAsync(node);
+    }
+
     private void ClearSelectionButton_Click(object sender, RoutedEventArgs e)
     {
         _viewModel.ClearContractSelectionCommand.Execute(null);
