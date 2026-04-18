@@ -51,28 +51,7 @@ public static class ContractScheduleValidator
             return;
         }
 
-        if (contract.Schedule is null)
-        {
-            return;
-        }
-
-        if (contract.Schedule.RunAt is null)
-        {
-            throw new InvalidOperationException(
-                $"Contract '{contract.ContractId}' uses AdHoc schedule and must define RunAt.");
-        }
-
-        if (contract.Schedule.Every is not null)
-        {
-            throw new InvalidOperationException(
-                $"Contract '{contract.ContractId}' uses AdHoc schedule and must not define Every.");
-        }
-
-        if (!string.IsNullOrWhiteSpace(contract.Schedule.CronExpression))
-        {
-            throw new InvalidOperationException(
-                $"Contract '{contract.ContractId}' uses AdHoc schedule and must not define CronExpression.");
-        }
+        ValidateNoScheduledTriggers(contract, "Manual");
     }
     
     private static void ValidateAdHoc(ContractBase contract)
@@ -150,6 +129,32 @@ public static class ContractScheduleValidator
         {
             throw new InvalidOperationException(
                 $"Contract '{contract.ContractId}' uses Recurring schedule and must not define Every.");
+        }
+    }
+
+    private static void ValidateNoScheduledTriggers(ContractBase contract, string mode)
+    {
+        if (contract.Schedule is null)
+        {
+            return;
+        }
+
+        if (contract.Schedule.RunAt is not null)
+        {
+            throw new InvalidOperationException(
+                $"Contract '{contract.ContractId}' uses {mode} schedule and must not define RunAt.");
+        }
+
+        if (contract.Schedule.Every is not null)
+        {
+            throw new InvalidOperationException(
+                $"Contract '{contract.ContractId}' uses {mode} schedule and must not define Every.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(contract.Schedule.CronExpression))
+        {
+            throw new InvalidOperationException(
+                $"Contract '{contract.ContractId}' uses {mode} schedule and must not define CronExpression.");
         }
     }
 }

@@ -176,14 +176,17 @@
                                       SelectedValue="{Binding ContractCreator.ContractType, UpdateSourceTrigger=PropertyChanged}"
                                       SelectedValuePath="Content">
                                 <ComboBoxItem Content="ApiToApi"/>
-                                <ComboBoxItem Content="PortToApi"/>
+                                <ComboBoxItem Content="ApiToFile"/>
                                 <ComboBoxItem Content="FileToApi"/>
+                                <ComboBoxItem Content="FileToFile"/>
+                                <ComboBoxItem Content="PortToApi"/>
+                                <ComboBoxItem Content="PortToFile"/>
                             </ComboBox>
                         </Grid>
 
-                        <!-- ApiToApi -->
+                        <!-- API Source -->
                         <Grid Grid.Row="2"
-                              Visibility="{Binding ContractCreator.IsApiToApi, Converter={StaticResource BoolToVisibilityConverter}}">
+                              Visibility="{Binding ContractCreator.UsesApiSource, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
@@ -206,9 +209,9 @@
                                      Text="{Binding ContractCreator.SourceMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- PortToApi -->
+                        <!-- Port Source -->
                         <Grid Grid.Row="2"
-                              Visibility="{Binding ContractCreator.IsPortToApi, Converter={StaticResource BoolToVisibilityConverter}}">
+                              Visibility="{Binding ContractCreator.UsesPortSource, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
@@ -231,38 +234,71 @@
                                      Text="{Binding ContractCreator.ListenerMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- FileToApi -->
+                        <!-- File Source -->
                         <Grid Grid.Row="2"
-                              Visibility="{Binding ContractCreator.IsFileToApi, Converter={StaticResource BoolToVisibilityConverter}}">
+                              Visibility="{Binding ContractCreator.UsesFileSource, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="8"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="8"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="120"/>
                             </Grid.ColumnDefinitions>
 
-                            <TextBlock Grid.Column="0"
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="0"
                                        VerticalAlignment="Center"
-                                       Text="File Path:"/>
-                            <TextBox Grid.Column="1"
+                                       Text="Source Directory:"/>
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="1"
                                      Margin="8,0,16,0"
-                                     Text="{Binding ContractCreator.FilePath, UpdateSourceTrigger=PropertyChanged}"/>
+                                     Text="{Binding ContractCreator.SourceDirectory, UpdateSourceTrigger=PropertyChanged}"/>
 
-                            <TextBlock Grid.Column="2"
+                            <TextBlock Grid.Row="0"
+                                       Grid.Column="2"
                                        VerticalAlignment="Center"
-                                       Text="File Type:"/>
-                            <ComboBox Grid.Column="3"
+                                       Text="Search Pattern:"/>
+                            <TextBox Grid.Row="0"
+                                     Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SourceSearchPattern, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <CheckBox Grid.Row="2"
+                                      Grid.Column="1"
                                       Margin="8,0,0,0"
-                                      SelectedValue="{Binding ContractCreator.FileType, UpdateSourceTrigger=PropertyChanged}"
-                                      SelectedValuePath="Content">
-                                <ComboBoxItem Content="csv"/>
-                                <ComboBoxItem Content="json"/>
-                                <ComboBoxItem Content="txt"/>
-                            </ComboBox>
+                                      VerticalAlignment="Center"
+                                      Content="Include subdirectories"
+                                      IsChecked="{Binding ContractCreator.SourceIncludeSubdirectories, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Row="4"
+                                       Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Processed Dir:"/>
+                            <TextBox Grid.Row="4"
+                                     Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SourceProcessedDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Row="4"
+                                       Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="Error Dir:"/>
+                            <TextBox Grid.Row="4"
+                                     Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SourceErrorDirectory, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- Shared Sink -->
-                        <Grid Grid.Row="4">
+                        <!-- API Sink -->
+                        <Grid Grid.Row="4"
+                              Visibility="{Binding ContractCreator.UsesApiSink, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="140"/>
                                 <ColumnDefinition Width="*"/>
@@ -285,7 +321,32 @@
                                      Text="{Binding ContractCreator.SinkMethod, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- ApiToApi and PortToApi -->
+                        <!-- File Sink -->
+                        <Grid Grid.Row="4"
+                              Visibility="{Binding ContractCreator.UsesFileSink, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="140"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0"
+                                       VerticalAlignment="Center"
+                                       Text="Sink Directory:"/>
+                            <TextBox Grid.Column="1"
+                                     Margin="8,0,16,0"
+                                     Text="{Binding ContractCreator.SinkDirectory, UpdateSourceTrigger=PropertyChanged}"/>
+
+                            <TextBlock Grid.Column="2"
+                                       VerticalAlignment="Center"
+                                       Text="File Extension:"/>
+                            <TextBox Grid.Column="3"
+                                     Margin="8,0,0,0"
+                                     Text="{Binding ContractCreator.SinkFileExtension, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <!-- Business Key -->
                         <Grid Grid.Row="6"
                               Visibility="{Binding ContractCreator.SupportsBusinessKey, Converter={StaticResource BoolToVisibilityConverter}}">
                             <Grid.ColumnDefinitions>
@@ -346,11 +407,11 @@
                                           MinHeight="240">
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Source Fields"
-                                                            Binding="{Binding SourceFieldsText, UpdateSourceTrigger=PropertyChanged}"
+                                                            Binding="{Binding SourceFieldsText, UpdateSourceTrigger=LostFocus}"
                                                             Width="*" />
 
                                         <DataGridTextColumn Header="Target Fields"
-                                                            Binding="{Binding TargetFieldsText, UpdateSourceTrigger=PropertyChanged}"
+                                                            Binding="{Binding TargetFieldsText, UpdateSourceTrigger=LostFocus}"
                                                             Width="*" />
 
                                         <DataGridComboBoxColumn Header="Transformation"

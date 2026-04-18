@@ -179,7 +179,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
-        if (ContractCreator.SupportsScheduling && request.Schedule is null)
+        if (ContractCreator.SupportsScheduling && ContractCreator.Schedule is null)
         {
             StatusMessage = "Please configure scheduling before saving the contract.";
             return;
@@ -221,15 +221,21 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
         try
         {
-            var request = await TryLoadContractRequestAsync(SelectedNode.FullPath);
+            var loadedContract = await TryLoadContractRequestAsync(SelectedNode.FullPath);
 
-            if (request is null)
+            if (loadedContract is null)
             {
                 StatusMessage = $"Selected file '{SelectedNode.Name}' is not a supported editable contract.";
                 return;
             }
 
+            var request = loadedContract.Request;
+
             ContractCreator.LoadFromRequest(request, SelectedNode.FullPath);
+            ContractCreator.Schedule = ContractCreator.SupportsScheduling
+                ? loadedContract.Schedule
+                : null;
+
             StatusMessage = $"Loaded contract '{request.Name}' for editing.";
         }
         catch (Exception ex)
@@ -262,7 +268,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             : Path.GetDirectoryName(SelectedNode.FullPath) ?? ContractsDirectoryPath;
     }
 
-    private static async Task<CreateContractRequest?> TryLoadContractRequestAsync(string filePath)
+    private static async Task<EditableContractRequest?> TryLoadContractRequestAsync(string filePath)
     {
         var json = await File.ReadAllTextAsync(filePath);
 
@@ -276,31 +282,64 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
         if (root.TryGetProperty("ApiToApi", out var apiToApiElement))
         {
-            return BuildApiToApiRequest(apiToApiElement);
+            return BuildEditableContractRequest(BuildApiToApiRequest(apiToApiElement), apiToApiElement);
         }
 
-        if (root.TryGetProperty("PortToApi", out var portToApiElement))
+        if (root.TryGetProperty("ApiToFile", out var apiToFileElement))
         {
-            return BuildPortToApiRequest(portToApiElement);
+            return BuildEditableContractRequest(BuildApiToFileRequest(apiToFileElement), apiToFileElement);
         }
 
         if (root.TryGetProperty("FileToApi", out var fileToApiElement))
         {
-            return BuildFileToApiRequest(fileToApiElement);
+            return BuildEditableContractRequest(BuildFileToApiRequest(fileToApiElement), fileToApiElement);
+        }
+
+        if (root.TryGetProperty("FileToFile", out var fileToFileElement))
+        {
+            return BuildEditableContractRequest(BuildFileToFileRequest(fileToFileElement), fileToFileElement);
+        }
+
+        if (root.TryGetProperty("PortToApi", out var portToApiElement))
+        {
+            return BuildEditableContractRequest(BuildPortToApiRequest(portToApiElement), portToApiElement);
+        }
+
+        if (root.TryGetProperty("PortToFile", out var portToFileElement))
+        {
+            return BuildEditableContractRequest(BuildPortToFileRequest(portToFileElement), portToFileElement);
         }
 
         return null;
+    }
+
+    private static EditableContractRequest BuildEditableContractRequest(
+        CreateContractRequest request,
+        JsonElement contractElement)
+    {
+        var schedule = ParseScheduleRequest(contractElement);
+        request.Schedule = schedule;
+
+        return new EditableContractRequest(request, schedule);
     }
 
     private static CreateContractRequest BuildApiToApiRequest(JsonElement contractElement)
     {
         var request = BuildBaseRequest(contractElement, "ApiToApi");
 
-        if (contractElement.TryGetProperty("Source", out var sourceElement))
-        {
-            request.SourceEndpoint = GetStringProperty(sourceElement, "Endpoint");
-            request.SourceMethod = GetStringProperty(sourceElement, "Method", "GET");
-        }
+        ApplyApiSource(request, contractElement);
+        ApplyApiSink(request, contractElement);
+
+        request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
+        return request;
+    }
+
+    private static CreateContractRequest BuildApiToFileRequest(JsonElement contractElement)
+    {
+        var request = BuildBaseRequest(contractElement, "ApiToFile");
+
+        ApplyApiSource(request, contractElement);
+        ApplyFileSink(request, contractElement);
 
         request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
         return request;
@@ -310,15 +349,22 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     {
         var request = BuildBaseRequest(contractElement, "PortToApi");
 
-        if (contractElement.TryGetProperty("Listener", out var listenerElement))
-        {
-            request.ListenerPath = GetStringProperty(listenerElement, "Path", "/incoming");
-            request.ListenerMethod = GetStringProperty(listenerElement, "Method", "POST");
-        }
+        ApplyPortListener(request, contractElement);
+        ApplyApiSink(request, contractElement);
 
         request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
-        request.Schedule = null;
 
+        return request;
+    }
+
+    private static CreateContractRequest BuildPortToFileRequest(JsonElement contractElement)
+    {
+        var request = BuildBaseRequest(contractElement, "PortToFile");
+
+        ApplyPortListener(request, contractElement);
+        ApplyFileSink(request, contractElement);
+
+        request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
         return request;
     }
 
@@ -326,12 +372,21 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     {
         var request = BuildBaseRequest(contractElement, "FileToApi");
 
-        if (contractElement.TryGetProperty("Source", out var sourceElement))
-        {
-            request.FilePath = GetStringProperty(sourceElement, "Directory");
-            request.FileType = GetStringProperty(sourceElement, "SearchPattern", "*.csv");
-        }
+        ApplyFileSource(request, contractElement);
+        ApplyApiSink(request, contractElement);
 
+        request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
+        return request;
+    }
+
+    private static CreateContractRequest BuildFileToFileRequest(JsonElement contractElement)
+    {
+        var request = BuildBaseRequest(contractElement, "FileToFile");
+
+        ApplyFileSource(request, contractElement);
+        ApplyFileSink(request, contractElement);
+
+        request.BusinessKeyField = ParseBusinessKeyFields(contractElement);
         return request;
     }
 
@@ -340,28 +395,77 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         var name = GetStringProperty(contractElement, "Name");
         var contractType = GetStringProperty(contractElement, "ContractType", fallbackType);
 
-        var sinkEndpoint = string.Empty;
-        var sinkMethod = "POST";
-
-        if (contractElement.TryGetProperty("Sink", out var sinkElement))
-        {
-            sinkEndpoint = GetStringProperty(sinkElement, "Endpoint");
-            sinkMethod = GetStringProperty(sinkElement, "Method", "POST");
-        }
-
         return new CreateContractRequest
         {
             Name = name,
             ContractType = contractType,
-            SinkEndpoint = sinkEndpoint,
-            SinkMethod = sinkMethod,
-            BusinessKeyField = "id",
+            SourceMethod = "GET",
             ListenerPath = "/incoming",
             ListenerMethod = "POST",
-            FileType = "csv",
-            Schedule = ParseScheduleRequest(contractElement),
+            SourceSearchPattern = "*.csv",
+            SinkMethod = "POST",
+            SinkFileExtension = "csv",
+            BusinessKeyField = "id",
             Mappings = ParseMappings(contractElement)
         };
+    }
+
+    private static void ApplyApiSource(CreateContractRequest request, JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("Source", out var sourceElement))
+        {
+            return;
+        }
+
+        request.SourceEndpoint = GetStringProperty(sourceElement, "Endpoint");
+        request.SourceMethod = GetStringProperty(sourceElement, "Method", "GET");
+    }
+
+    private static void ApplyPortListener(CreateContractRequest request, JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("Listener", out var listenerElement))
+        {
+            return;
+        }
+
+        request.ListenerPath = GetStringProperty(listenerElement, "Path", "/incoming");
+        request.ListenerMethod = GetStringProperty(listenerElement, "Method", "POST");
+    }
+
+    private static void ApplyFileSource(CreateContractRequest request, JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("Source", out var sourceElement))
+        {
+            return;
+        }
+
+        request.SourceDirectory = GetStringProperty(sourceElement, "Directory");
+        request.SourceSearchPattern = GetStringProperty(sourceElement, "SearchPattern", "*.csv");
+        request.SourceIncludeSubdirectories = GetBoolProperty(sourceElement, "IncludeSubdirectories");
+        request.SourceProcessedDirectory = GetStringProperty(sourceElement, "ProcessedDirectory");
+        request.SourceErrorDirectory = GetStringProperty(sourceElement, "ErrorDirectory");
+    }
+
+    private static void ApplyApiSink(CreateContractRequest request, JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("Sink", out var sinkElement))
+        {
+            return;
+        }
+
+        request.SinkEndpoint = GetStringProperty(sinkElement, "Endpoint");
+        request.SinkMethod = GetStringProperty(sinkElement, "Method", "POST");
+    }
+
+    private static void ApplyFileSink(CreateContractRequest request, JsonElement contractElement)
+    {
+        if (!contractElement.TryGetProperty("Sink", out var sinkElement))
+        {
+            return;
+        }
+
+        request.SinkDirectory = GetStringProperty(sinkElement, "Directory");
+        request.SinkFileExtension = GetStringProperty(sinkElement, "FileExtension", "csv");
     }
 
     private static string ParseBusinessKeyFields(JsonElement contractElement)
@@ -541,6 +645,21 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             ? propertyElement.GetString() ?? fallback
             : fallback;
     }
+
+    private static bool GetBoolProperty(JsonElement element, string propertyName, bool fallback = false)
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return fallback;
+        }
+
+        return propertyElement.ValueKind == JsonValueKind.True ||
+               propertyElement.ValueKind != JsonValueKind.False && fallback;
+    }
+
+    private sealed record EditableContractRequest(
+        CreateContractRequest Request,
+        ScheduleEditorRequest? Schedule);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -41,6 +41,38 @@ var LastNames = new[]
     "Tetepoulidis", "Kjelberg", "Johnson", "Papoudari", "Viborg", "Nielsen", "Klein"
 };
 
+var Businesses = new[]
+{
+    "Northwind", "Contoso", "Fabrikam"
+};
+
+app.MapGet("/get-random-business-income", () =>
+    {
+        var rnd = Random.Shared;
+
+        var firstName = FirstNames[rnd.Next(FirstNames.Length)];
+        var lastName = LastNames[rnd.Next(LastNames.Length)];
+        var now = DateTimeOffset.Now;
+        var day = rnd.Next(1, DateTime.DaysInMonth(now.Year, now.Month) + 1);
+        var businessNames = Businesses.OrderBy(_ => rnd.Next()).ToArray();
+
+        return Results.Ok(new BusinessIncomeSnapshot(
+            FirstName: firstName,
+            LastName: lastName,
+            RandomDayOfCurrentMonth: day,
+            BusinessOneName: businessNames[0],
+            BusinessOneIncome: rnd.Next(-100, 1501),
+            BusinessTwoName: businessNames[1],
+            BusinessTwoIncome: rnd.Next(-100, 1501),
+            BusinessThreeName: businessNames[2],
+            BusinessThreeIncome: rnd.Next(-100, 1501)
+        ));
+    })
+    .WithName("GetRandomBusinessIncome")
+    .WithTags("Mock Data")
+    .Produces<BusinessIncomeSnapshot>(StatusCodes.Status200OK)
+    .WithOpenApi();
+
 app.MapGet("/get-random-guest-registration-full-name", () =>
     {
         var rnd = Random.Shared;
@@ -251,4 +283,16 @@ public record GuestRegistrationFullName(
     string RegisteredBy,
     DateTimeOffset MeetingDateTime,
     int? Duration
+);
+
+public record BusinessIncomeSnapshot(
+    string FirstName,
+    string LastName,
+    int RandomDayOfCurrentMonth,
+    string BusinessOneName,
+    int BusinessOneIncome,
+    string BusinessTwoName,
+    int BusinessTwoIncome,
+    string BusinessThreeName,
+    int BusinessThreeIncome
 );

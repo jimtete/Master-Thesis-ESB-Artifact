@@ -23,8 +23,15 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     private string _listenerPath = "/incoming";
     private string _listenerMethod = "POST";
 
-    private string _filePath = string.Empty;
-    private string _fileType = "csv";
+    private string _sourceDirectory = string.Empty;
+    private string _sourceSearchPattern = "*.csv";
+    private bool _sourceIncludeSubdirectories;
+    private string _sourceProcessedDirectory = string.Empty;
+    private string _sourceErrorDirectory = string.Empty;
+
+    private string _sinkDirectory = string.Empty;
+    private string _sinkFileExtension = "csv";
+
     private ScheduleEditorRequest? _schedule;
 
     private bool _isEditMode;
@@ -49,13 +56,9 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             if (_contractType == value) return;
             _contractType = value;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(IsApiToApi));
-            OnPropertyChanged(nameof(IsPortToApi));
-            OnPropertyChanged(nameof(IsFileToApi));
-            OnPropertyChanged(nameof(SupportsBusinessKey));
-            OnPropertyChanged(nameof(SupportsScheduling));
+            OnContractTypeChanged();
 
-            if (IsPortToApi)
+            if (UsesPortSource)
             {
                 Schedule = null;
             }
@@ -63,10 +66,19 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     }
 
     public bool IsApiToApi => string.Equals(ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase);
+    public bool IsApiToFile => string.Equals(ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase);
     public bool IsPortToApi => string.Equals(ContractType, "PortToApi", StringComparison.OrdinalIgnoreCase);
+    public bool IsPortToFile => string.Equals(ContractType, "PortToFile", StringComparison.OrdinalIgnoreCase);
     public bool IsFileToApi => string.Equals(ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase);
-    public bool SupportsBusinessKey => IsApiToApi || IsPortToApi;
-    public bool SupportsScheduling => IsApiToApi || IsFileToApi;
+    public bool IsFileToFile => string.Equals(ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase);
+
+    public bool UsesApiSource => IsApiToApi || IsApiToFile;
+    public bool UsesPortSource => IsPortToApi || IsPortToFile;
+    public bool UsesFileSource => IsFileToApi || IsFileToFile;
+    public bool UsesApiSink => IsApiToApi || IsPortToApi || IsFileToApi;
+    public bool UsesFileSink => IsApiToFile || IsPortToFile || IsFileToFile;
+    public bool SupportsBusinessKey => true;
+    public bool SupportsScheduling => UsesApiSource || UsesFileSource;
 
     public bool HasSchedule => Schedule is not null;
 
@@ -171,24 +183,79 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
     }
 
-    public string FilePath
+    public string SourceDirectory
     {
-        get => _filePath;
+        get => _sourceDirectory;
         set
         {
-            if (_filePath == value) return;
-            _filePath = value;
+            if (_sourceDirectory == value) return;
+            _sourceDirectory = value;
             OnPropertyChanged();
         }
     }
 
-    public string FileType
+    public string SourceSearchPattern
     {
-        get => _fileType;
+        get => _sourceSearchPattern;
         set
         {
-            if (_fileType == value) return;
-            _fileType = value;
+            if (_sourceSearchPattern == value) return;
+            _sourceSearchPattern = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool SourceIncludeSubdirectories
+    {
+        get => _sourceIncludeSubdirectories;
+        set
+        {
+            if (_sourceIncludeSubdirectories == value) return;
+            _sourceIncludeSubdirectories = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string SourceProcessedDirectory
+    {
+        get => _sourceProcessedDirectory;
+        set
+        {
+            if (_sourceProcessedDirectory == value) return;
+            _sourceProcessedDirectory = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string SourceErrorDirectory
+    {
+        get => _sourceErrorDirectory;
+        set
+        {
+            if (_sourceErrorDirectory == value) return;
+            _sourceErrorDirectory = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string SinkDirectory
+    {
+        get => _sinkDirectory;
+        set
+        {
+            if (_sinkDirectory == value) return;
+            _sinkDirectory = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string SinkFileExtension
+    {
+        get => _sinkFileExtension;
+        set
+        {
+            if (_sinkFileExtension == value) return;
+            _sinkFileExtension = value;
             OnPropertyChanged();
         }
     }
@@ -264,10 +331,16 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
             ListenerPath = ListenerPath.Trim(),
             ListenerMethod = ListenerMethod.Trim(),
 
-            FilePath = FilePath.Trim(),
-            FileType = FileType.Trim(),
+            SourceDirectory = SourceDirectory.Trim(),
+            SourceSearchPattern = SourceSearchPattern.Trim(),
+            SourceIncludeSubdirectories = SourceIncludeSubdirectories,
+            SourceProcessedDirectory = SourceProcessedDirectory.Trim(),
+            SourceErrorDirectory = SourceErrorDirectory.Trim(),
 
-            Schedule = Schedule,
+            SinkDirectory = SinkDirectory.Trim(),
+            SinkFileExtension = SinkFileExtension.Trim(),
+
+            Schedule = SupportsScheduling ? Schedule : null,
 
             Mappings = Mappings.ToList(),
         };
@@ -291,10 +364,20 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         ListenerPath = string.IsNullOrWhiteSpace(request.ListenerPath) ? "/incoming" : request.ListenerPath;
         ListenerMethod = string.IsNullOrWhiteSpace(request.ListenerMethod) ? "POST" : request.ListenerMethod;
 
-        FilePath = request.FilePath;
-        FileType = string.IsNullOrWhiteSpace(request.FileType) ? "csv" : request.FileType;
+        SourceDirectory = request.SourceDirectory;
+        SourceSearchPattern = string.IsNullOrWhiteSpace(request.SourceSearchPattern)
+            ? "*.csv"
+            : request.SourceSearchPattern;
+        SourceIncludeSubdirectories = request.SourceIncludeSubdirectories;
+        SourceProcessedDirectory = request.SourceProcessedDirectory;
+        SourceErrorDirectory = request.SourceErrorDirectory;
 
-        Schedule = request.Schedule;
+        SinkDirectory = request.SinkDirectory;
+        SinkFileExtension = string.IsNullOrWhiteSpace(request.SinkFileExtension)
+            ? "csv"
+            : request.SinkFileExtension;
+
+        Schedule = UsesPortSource ? null : request.Schedule;
 
         Mappings.Clear();
 
@@ -311,7 +394,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
                         : mapping.Transformation,
                     Separator = string.IsNullOrWhiteSpace(mapping.Separator)
                         ? " "
-                        : mapping.Separator
+                        : mapping.Separator,
+                    Expression = mapping.Expression ?? string.Empty
                 });
             }
         }
@@ -353,8 +437,14 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         ListenerPath = "/incoming";
         ListenerMethod = "POST";
 
-        FilePath = string.Empty;
-        FileType = "csv";
+        SourceDirectory = string.Empty;
+        SourceSearchPattern = "*.csv";
+        SourceIncludeSubdirectories = false;
+        SourceProcessedDirectory = string.Empty;
+        SourceErrorDirectory = string.Empty;
+
+        SinkDirectory = string.Empty;
+        SinkFileExtension = "csv";
 
         Schedule = null;
 
@@ -394,6 +484,23 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
                 Separator = " "
             });
         }
+    }
+
+    private void OnContractTypeChanged()
+    {
+        OnPropertyChanged(nameof(IsApiToApi));
+        OnPropertyChanged(nameof(IsApiToFile));
+        OnPropertyChanged(nameof(IsPortToApi));
+        OnPropertyChanged(nameof(IsPortToFile));
+        OnPropertyChanged(nameof(IsFileToApi));
+        OnPropertyChanged(nameof(IsFileToFile));
+        OnPropertyChanged(nameof(UsesApiSource));
+        OnPropertyChanged(nameof(UsesPortSource));
+        OnPropertyChanged(nameof(UsesFileSource));
+        OnPropertyChanged(nameof(UsesApiSink));
+        OnPropertyChanged(nameof(UsesFileSink));
+        OnPropertyChanged(nameof(SupportsBusinessKey));
+        OnPropertyChanged(nameof(SupportsScheduling));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

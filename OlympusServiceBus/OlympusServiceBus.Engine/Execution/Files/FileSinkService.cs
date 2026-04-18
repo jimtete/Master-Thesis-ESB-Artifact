@@ -48,6 +48,7 @@ public sealed class FileSinkService
                     break;
 
                 case TransformationType.Split:
+                case TransformationType.Expression:
                     foreach (var sinkField in mapping.SinkFields ?? Array.Empty<SinkField>())
                     {
                         AddIfValid(sinkField.Value);
