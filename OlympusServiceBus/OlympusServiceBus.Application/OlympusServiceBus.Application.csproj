@@ -15,6 +15,10 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\OlympusServiceBus.Engine\OlympusServiceBus.Engine.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
       <Page Update="Views\MainWindow.xaml">
         <Generator>MSBuild:Compile</Generator>
         <XamlRuntime>Wpf</XamlRuntime>

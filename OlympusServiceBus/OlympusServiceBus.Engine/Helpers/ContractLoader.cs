@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
 using OlympusServiceBus.Utils.Contracts.AntiContracts;
 
@@ -12,7 +13,12 @@ public sealed class ContractLoader : IContractLoader
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
+        Converters =
+        {
+            new JsonStringEnumConverter(),
+            new SourceFieldJsonConverter(),
+            new SinkFieldJsonConverter()
+        }
     };
 
     public ContractLoader(ILogger<ContractLoader> logger)
@@ -41,11 +47,17 @@ public sealed class ContractLoader : IContractLoader
             {
                 continue;
             }
-            
+
+            var json = File.ReadAllText(file);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Skipping empty forward contract file: {File}", file);
+                continue;
+            }
+
             try
             {
-                var json = File.ReadAllText(file);
-
                 // ---- Wrapper shapes ----
 
                 var a2a = JsonSerializer.Deserialize<ApiToApiDocument>(json, JsonOptions);
@@ -69,6 +81,30 @@ public sealed class ContractLoader : IContractLoader
                 {
                     EnsureContractId(p2a.PortToApi, file);
                     loadedContracts.Add(new LoadedContract(p2a.PortToApi, file));
+                    continue;
+                }
+
+                var a2f = JsonSerializer.Deserialize<ApiToFileDocument>(json, JsonOptions);
+                if (a2f?.ApiToFile is not null)
+                {
+                    EnsureContractId(a2f.ApiToFile, file);
+                    loadedContracts.Add(new LoadedContract(a2f.ApiToFile, file));
+                    continue;
+                }
+
+                var f2f = JsonSerializer.Deserialize<FileToFileDocument>(json, JsonOptions);
+                if (f2f?.FileToFile is not null)
+                {
+                    EnsureContractId(f2f.FileToFile, file);
+                    loadedContracts.Add(new LoadedContract(f2f.FileToFile, file));
+                    continue;
+                }
+
+                var p2f = JsonSerializer.Deserialize<PortToFileDocument>(json, JsonOptions);
+                if (p2f?.PortToFile is not null)
+                {
+                    EnsureContractId(p2f.PortToFile, file);
+                    loadedContracts.Add(new LoadedContract(p2f.PortToFile, file));
                     continue;
                 }
 
@@ -98,18 +134,43 @@ public sealed class ContractLoader : IContractLoader
                     continue;
                 }
 
-                _logger.LogDebug("Ignoring JSON for forward contract loading in file: {File}", file);
+                var directA2f = JsonSerializer.Deserialize<ApiToFileContract>(json, JsonOptions);
+                if (directA2f is not null && LooksLikeForwardContract(directA2f))
+                {
+                    EnsureContractId(directA2f, file);
+                    loadedContracts.Add(new LoadedContract(directA2f, file));
+                    continue;
+                }
+
+                var directF2f = JsonSerializer.Deserialize<FileToFileContract>(json, JsonOptions);
+                if (directF2f is not null && LooksLikeForwardContract(directF2f))
+                {
+                    EnsureContractId(directF2f, file);
+                    loadedContracts.Add(new LoadedContract(directF2f, file));
+                    continue;
+                }
+
+                var directP2f = JsonSerializer.Deserialize<PortToFileContract>(json, JsonOptions);
+                if (directP2f is not null && LooksLikeForwardContract(directP2f))
+                {
+                    EnsureContractId(directP2f, file);
+                    loadedContracts.Add(new LoadedContract(directP2f, file));
+                    continue;
+                }
+
+                _logger.LogWarning("Skipping unrecognized forward contract JSON file: {File}", file);
+            }
+            catch (JsonException e)
+            {
+                _logger.LogWarning(e, "Skipping invalid forward contract JSON file: {File}", file);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Couldn't load forward contract from file: {File}", file);
+                _logger.LogError(e, "Unexpected error while loading forward contract from file: {File}", file);
             }
         }
 
-        ValidateContractNames(loadedContracts);
-        ValidateBusinessKeyFields(loadedContracts);
-
-        var result = loadedContracts
+        var result = SanitizeForwardContracts(loadedContracts)
             .Select(x => x.Contract)
             .ToList();
 
@@ -138,11 +199,17 @@ public sealed class ContractLoader : IContractLoader
             {
                 continue;
             }
-            
+
+            var json = File.ReadAllText(file);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                _logger.LogWarning("Skipping empty anti-contract file: {File}", file);
+                continue;
+            }
+
             try
             {
-                var json = File.ReadAllText(file);
-
                 // ---- Wrapper shapes ----
 
                 var apiStatus = JsonSerializer.Deserialize<ApiStatusAntiContractDocument>(json, JsonOptions);
@@ -163,17 +230,19 @@ public sealed class ContractLoader : IContractLoader
                     continue;
                 }
 
-                _logger.LogDebug("Ignoring JSON for anti-contract loading in file: {File}", file);
+                _logger.LogWarning("Skipping unrecognized anti-contract JSON file: {File}", file);
+            }
+            catch (JsonException e)
+            {
+                _logger.LogWarning(e, "Skipping invalid anti-contract JSON file: {File}", file);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Couldn't load anti-contract from file: {File}", file);
+                _logger.LogError(e, "Unexpected error while loading anti-contract from file: {File}", file);
             }
         }
 
-        ValidateAntiContractNames(loadedAntiContracts);
-
-        var result = loadedAntiContracts
+        var result = SanitizeAntiContracts(loadedAntiContracts)
             .Select(x => x.Contract)
             .ToList();
 
@@ -205,60 +274,79 @@ public sealed class ContractLoader : IContractLoader
                !string.IsNullOrWhiteSpace(contract.ContractType);
     }
 
-    private static void ValidateContractNames(List<LoadedContract> contracts)
+    private List<LoadedContract> SanitizeForwardContracts(List<LoadedContract> contracts)
     {
-        var missingNames = contracts
-            .Where(x => string.IsNullOrWhiteSpace(x.Contract.Name))
-            .Select(x => x.FilePath)
-            .ToList();
+        var result = new List<LoadedContract>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (missingNames.Count > 0)
+        foreach (var item in contracts)
         {
-            throw new InvalidOperationException(
-                $"All contracts must define a non-empty Name. Invalid file(s): {string.Join(", ", missingNames)}");
+            if (string.IsNullOrWhiteSpace(item.Contract.Name))
+            {
+                _logger.LogWarning(
+                    "Skipping forward contract because Name is missing. File: {File}",
+                    item.FilePath);
+                continue;
+            }
+
+            if (item.Contract.BusinessKeyFields is null ||
+                item.Contract.BusinessKeyFields.Length == 0 ||
+                item.Contract.BusinessKeyFields.All(string.IsNullOrWhiteSpace))
+            {
+                _logger.LogWarning(
+                    "Skipping forward contract '{ContractName}' because BusinessKeyFields is missing or empty. File: {File}",
+                    item.Contract.Name,
+                    item.FilePath);
+                continue;
+            }
+
+            var normalizedName = item.Contract.Name.Trim();
+
+            if (!seenNames.Add(normalizedName))
+            {
+                _logger.LogWarning(
+                    "Skipping duplicate forward contract '{ContractName}'. File: {File}",
+                    normalizedName,
+                    item.FilePath);
+                continue;
+            }
+
+            result.Add(item);
         }
 
-        var duplicateGroups = contracts
-            .GroupBy(x => x.Contract.Name.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .ToList();
-
-        if (duplicateGroups.Count > 0)
-        {
-            var details = duplicateGroups
-                .Select(g => $"{g.Key} => [{string.Join(", ", g.Select(x => x.FilePath))}]");
-
-            throw new InvalidOperationException(
-                $"Contract names must be unique. Duplicates found: {string.Join("; ", details)}");
-        }
+        return result;
     }
 
-    private static void ValidateAntiContractNames(List<LoadedAntiContract> contracts)
+    private List<LoadedAntiContract> SanitizeAntiContracts(List<LoadedAntiContract> contracts)
     {
-        var missingNames = contracts
-            .Where(x => string.IsNullOrWhiteSpace(x.Contract.ContractId))
-            .Select(x => x.FilePath)
-            .ToList();
+        var result = new List<LoadedAntiContract>();
+        var seenContractIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        if (missingNames.Count > 0)
+        foreach (var item in contracts)
         {
-            throw new InvalidOperationException(
-                $"All anti-contracts must define a non-empty ContractId. Invalid file(s): {string.Join(", ", missingNames)}");
+            if (string.IsNullOrWhiteSpace(item.Contract.ContractId))
+            {
+                _logger.LogWarning(
+                    "Skipping anti-contract because ContractId is missing. File: {File}",
+                    item.FilePath);
+                continue;
+            }
+
+            var normalizedContractId = item.Contract.ContractId.Trim();
+
+            if (!seenContractIds.Add(normalizedContractId))
+            {
+                _logger.LogWarning(
+                    "Skipping duplicate anti-contract '{ContractId}'. File: {File}",
+                    normalizedContractId,
+                    item.FilePath);
+                continue;
+            }
+
+            result.Add(item);
         }
 
-        var duplicateGroups = contracts
-            .GroupBy(x => x.Contract.ContractId.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Where(g => g.Count() > 1)
-            .ToList();
-
-        if (duplicateGroups.Count > 0)
-        {
-            var details = duplicateGroups
-                .Select(g => $"{g.Key} => [{string.Join(", ", g.Select(x => x.FilePath))}]");
-
-            throw new InvalidOperationException(
-                $"Anti-contract IDs must be unique. Duplicates found: {string.Join("; ", details)}");
-        }
+        return result;
     }
 
     private static string ResolveContractsDirectory(string folderName)
@@ -270,23 +358,6 @@ public sealed class ContractLoader : IContractLoader
         };
 
         return candidates.FirstOrDefault(Directory.Exists) ?? candidates[1];
-    }
-
-    private static void ValidateBusinessKeyFields(List<LoadedContract> contracts)
-    {
-        var invalidContracts = contracts
-            .Where(x =>
-                x.Contract.BusinessKeyFields is null ||
-                x.Contract.BusinessKeyFields.Length == 0 ||
-                x.Contract.BusinessKeyFields.All(string.IsNullOrWhiteSpace))
-            .Select(x => $"{x.Contract.Name} ({x.FilePath})")
-            .ToList();
-
-        if (invalidContracts.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"All contracts must define at least one non-empty BusinessKeyField. Invalid contract(s): {string.Join(", ", invalidContracts)}");
-        }
     }
 
     private sealed record LoadedContract(ContractBase Contract, string FilePath);
@@ -307,11 +378,26 @@ public sealed class ContractLoader : IContractLoader
         public PortToApiContract? PortToApi { get; set; }
     }
 
+    private sealed class ApiToFileDocument
+    {
+        public ApiToFileContract? ApiToFile { get; set; }
+    }
+
+    private sealed class FileToFileDocument
+    {
+        public FileToFileContract? FileToFile { get; set; }
+    }
+
+    private sealed class PortToFileDocument
+    {
+        public PortToFileContract? PortToFile { get; set; }
+    }
+
     private sealed class ApiStatusAntiContractDocument
     {
         public ApiStatusAntiContract? ApiStatusAntiContract { get; set; }
     }
-    
+
     private static bool ShouldSkipForwardContractFile(string filePath)
     {
         return filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)

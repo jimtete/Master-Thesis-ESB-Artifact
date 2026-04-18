@@ -1,0 +1,84 @@
+using OlympusServiceBus.Engine.Helpers;
+using OlympusServiceBus.Engine.Scheduling;
+using OlympusServiceBus.Engine.Services;
+using OlympusServiceBus.RuntimeState.Services;
+using OlympusServiceBus.Utils.Contracts;
+
+namespace OlympusServiceBus.Engine.Workers;
+
+public sealed class ApiToFileWorker(
+    ILogger<ApiToFileWorker> logger,
+    IContractRegistry registry,
+    IServiceScopeFactory scopeFactory
+) : BackgroundService
+{
+    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1);
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var contracts = registry.GetContract<ApiToFileContract>();
+
+        logger.LogInformation("ApiToFileWorker started. Loaded contracts: {Count}", contracts.Count);
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            foreach (var contract in contracts)
+            {
+                if (!contract.Enabled)
+                    continue;
+
+                try
+                {
+                    using var scope = scopeFactory.CreateScope();
+
+                    var executionStateService = scope.ServiceProvider.GetRequiredService<IContractExecutionStateService>();
+                    var executionService = scope.ServiceProvider.GetRequiredService<IApiToFileExecutionService>();
+
+                    var resolvedSchedule = ContractScheduleResolver.Resolve(contract);
+                    var executionState = await executionStateService.GetAsync(contract.ContractId, stoppingToken);
+
+                    var nowUtc = DateTimeOffset.UtcNow;
+                    var isDue = ContractScheduleDueEvaluator.IsDue(
+                        resolvedSchedule,
+                        executionState,
+                        nowUtc);
+
+                    logger.LogDebug(
+                        "Contract {ContractId} schedule evaluated. Mode: {Mode}, IsDue: {IsDue}, LastRunStartedAt: {LastRunStartedAt}, LastRunCompletedAt: {LastRunCompletedAt}, LastRunStatus: {LastRunStatus}",
+                        contract.ContractId,
+                        resolvedSchedule.Mode,
+                        isDue,
+                        executionState?.LastRunStartedAt,
+                        executionState?.LastRunCompletedAt,
+                        executionState?.LastRunStatus);
+
+                    if (!isDue)
+                        continue;
+
+                    logger.LogInformation(
+                        "Contract {ContractId} is due for execution. Schedule mode: {Mode}",
+                        contract.ContractId,
+                        resolvedSchedule.Mode);
+
+                    await executionService.ExecuteAsync(contract, stoppingToken);
+                }
+                catch (NotSupportedException ex)
+                {
+                    logger.LogWarning(
+                        ex,
+                        "Skipping contract {ContractId} because its schedule mode is not yet supported.",
+                        contract.ContractId);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(
+                        ex,
+                        "ApiToFileWorker failed while evaluating or executing contract {ContractId}",
+                        contract.ContractId);
+                }
+            }
+
+            await Task.Delay(Tick, stoppingToken);
+        }
+    }
+}

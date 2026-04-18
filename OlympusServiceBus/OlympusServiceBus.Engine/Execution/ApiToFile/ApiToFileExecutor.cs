@@ -1,42 +1,49 @@
-using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.Transformation;
 using OlympusServiceBus.Utils.Contracts;
 
-namespace OlympusServiceBus.Engine.Execution.ApiToApi;
+namespace OlympusServiceBus.Engine.Execution.ApiToFile;
 
-public class ApiToApiExecutor
+public class ApiToFileExecutor
 {
-    private readonly ILogger<ApiToApiExecutor> _logger;
+    private readonly ILogger<ApiToFileExecutor> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly FileSinkService _fileSinkService;
     private readonly IMappingEngine _mappingEngine;
 
-    public ApiToApiExecutor(
-        ILogger<ApiToApiExecutor> logger,
+    public ApiToFileExecutor(
+        ILogger<ApiToFileExecutor> logger,
         IHttpClientFactory httpClientFactory,
+        FileSinkService fileSinkService,
         IMappingEngine mappingEngine)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _fileSinkService = fileSinkService;
         _mappingEngine = mappingEngine;
     }
 
-    public async Task<ApiToApiExecutionResult?> BuildExecutionAsync(
-        ApiToApiContract contract,
+    public async Task<ApiToFileExecutionResult?> BuildExecutionAsync(
+        ApiToFileContract contract,
         CancellationToken cancellationToken)
     {
         if (!contract.Enabled)
             return null;
 
-        if (string.IsNullOrWhiteSpace(contract.Source?.Endpoint) ||
-            string.IsNullOrWhiteSpace(contract.Sink?.Endpoint))
+        if (string.IsNullOrWhiteSpace(contract.Source?.Endpoint))
         {
-            _logger.LogWarning("[{Contract}] Missing Source.Endpoint or Sink.Endpoint.", contract.ContractId);
+            _logger.LogWarning("[{Contract}] Missing Source.Endpoint.", contract.ContractId);
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(contract.Sink?.Directory))
+        {
+            _logger.LogWarning("[{Contract}] Missing Sink.Directory.", contract.ContractId);
             return null;
         }
 
         contract.Source.Method ??= "GET";
-        contract.Sink.Method ??= "POST";
 
         if (!contract.Source.Method.Equals("GET", StringComparison.OrdinalIgnoreCase))
         {
@@ -80,61 +87,33 @@ public class ApiToApiExecutor
 
         if (sinkPayload.Count == 0)
         {
-            _logger.LogWarning("[{Contract}] No fields mapped. Skipping sink call.", contract.ContractId);
+            _logger.LogWarning("[{Contract}] No fields mapped. Skipping sink write.", contract.ContractId);
             return null;
         }
 
-        return new ApiToApiExecutionResult
+        return new ApiToFileExecutionResult
         {
             SourcePayload = sourceObj,
             SinkPayload = sinkPayload
         };
     }
 
-    public async Task<JsonObject?> SendPayloadAsync(
-        ApiToApiContract contract,
+    public Task<FileWriteResult> WritePayloadAsync(
+        ApiToFileContract contract,
         JsonObject sinkPayload,
         CancellationToken cancellationToken)
     {
-        var client = _httpClientFactory.CreateClient();
-
-        try
-        {
-            using var req = new HttpRequestMessage(
-                new HttpMethod(contract.Sink.Method ?? "POST"),
-                contract.Sink.Endpoint)
-            {
-                Content = JsonContent.Create(sinkPayload)
-            };
-
-            using var resp = await client.SendAsync(req, cancellationToken);
-            var responseText = await resp.Content.ReadAsStringAsync(cancellationToken);
-
-            resp.EnsureSuccessStatusCode();
-
-            JsonObject? responsePayload = null;
-
-            if (!string.IsNullOrWhiteSpace(responseText))
-            {
-                responsePayload = JsonNode.Parse(responseText) as JsonObject;
-            }
-
-            _logger.LogInformation(
-                "[{Contract}] Forwarded payload to sink. Payload: {Payload}",
-                contract.ContractId,
-                sinkPayload.ToJsonString());
-
-            return responsePayload;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "[{Contract}] Sink call failed: {Endpoint}",
-                contract.ContractId,
-                contract.Sink.Endpoint);
-
-            throw;
-        }
+        return _fileSinkService.WriteAsync(
+            contract,
+            contract.Sink,
+            sinkPayload,
+            contract.Mappings,
+            cancellationToken);
     }
+}
+
+public sealed class ApiToFileExecutionResult
+{
+    public JsonObject? SourcePayload { get; set; }
+    public JsonObject? SinkPayload { get; set; }
 }
