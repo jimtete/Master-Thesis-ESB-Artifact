@@ -646,6 +646,8 @@ public class ContractsExplorerService : IContractsExplorerService
 
             node.ContractType = contractType;
 
+            var enabled = contractElement.ValueKind != JsonValueKind.Object ||
+                          GetBoolProperty(contractElement, "Enabled", true);
             var scheduleMode = "None";
 
             if (contractElement.ValueKind == JsonValueKind.Object &&
@@ -657,6 +659,7 @@ public class ContractsExplorerService : IContractsExplorerService
 
             node.ScheduleMode = scheduleMode;
             node.CanExecuteManually =
+                enabled &&
                 (string.Equals(contractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(contractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
                  string.Equals(contractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
@@ -745,5 +748,20 @@ public class ContractsExplorerService : IContractsExplorerService
         return propertyElement.ValueKind == JsonValueKind.String
             ? propertyElement.GetString() ?? fallback
             : fallback;
+    }
+
+    private static bool GetBoolProperty(JsonElement element, string propertyName, bool fallback = false)
+    {
+        if (!element.TryGetProperty(propertyName, out var propertyElement))
+        {
+            return fallback;
+        }
+
+        return propertyElement.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => fallback
+        };
     }
 }

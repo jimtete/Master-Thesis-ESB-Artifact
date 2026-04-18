@@ -14,6 +14,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 {
     private readonly IContractsWorkspaceService _contractsWorkspaceService;
     private readonly IContractsExplorerService _contractsExplorerService;
+    private readonly IManualContractExecutionService _manualContractExecutionService;
 
     private string _contractsDirectoryPath = string.Empty;
     private FileExplorerNode? _rootNode;
@@ -105,10 +106,12 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
     public ConfiguratorViewModel(
         IContractsWorkspaceService contractsWorkspaceService,
-        IContractsExplorerService contractsExplorerService)
+        IContractsExplorerService contractsExplorerService,
+        IManualContractExecutionService manualContractExecutionService)
     {
         _contractsWorkspaceService = contractsWorkspaceService;
         _contractsExplorerService = contractsExplorerService;
+        _manualContractExecutionService = manualContractExecutionService;
 
         CreateDirectoryCommand = new AsyncRelayCommand(CreateDirectoryAsync);
         CreateContractCommand = new AsyncRelayCommand(CreateContractAsync);
@@ -125,29 +128,40 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         StatusMessage = "Contracts workspace loaded.";
     }
 
-    public Task ExecuteManualContractAsync(FileExplorerNode? node)
+    public async Task ExecuteManualContractAsync(FileExplorerNode? node)
     {
         if (node is null)
         {
             StatusMessage = "No contract was selected for manual execution.";
-            return Task.CompletedTask;
+            return;
         }
 
         if (node.IsDirectory)
         {
             StatusMessage = "Folders cannot be executed.";
-            return Task.CompletedTask;
+            return;
         }
 
         if (!node.CanExecuteManually)
         {
             StatusMessage = $"Contract '{node.Name}' is not manually executable.";
-            return Task.CompletedTask;
+            return;
         }
 
         SelectedNode = node;
-        StatusMessage = $"Manual execution requested for contract '{node.Name}'.";
-        return Task.CompletedTask;
+        StatusMessage = $"Executing contract '{node.Name}'...";
+
+        try
+        {
+            var result = await _manualContractExecutionService.ExecuteAsync(node.FullPath);
+            StatusMessage = result.Message;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Manual execution failed for contract '{node.Name}': {ex.Message}";
+        }
+
+        await ReloadTreeAsync();
     }
 
     private async Task CreateDirectoryAsync()
