@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
-using OlympusServiceBus.Utils.Configuration;
+using OlympusServiceBus.Engine.Execution.Transformation;
 using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.Engine.Execution.ApiToApi;
@@ -9,11 +9,16 @@ public class ApiToApiExecutor
 {
     private readonly ILogger<ApiToApiExecutor> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMappingEngine _mappingEngine;
 
-    public ApiToApiExecutor(ILogger<ApiToApiExecutor> logger, IHttpClientFactory httpClientFactory)
+    public ApiToApiExecutor(
+        ILogger<ApiToApiExecutor> logger,
+        IHttpClientFactory httpClientFactory,
+        IMappingEngine mappingEngine)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
+        _mappingEngine = mappingEngine;
     }
 
     public async Task<ApiToApiExecutionResult?> BuildExecutionAsync(
@@ -23,7 +28,8 @@ public class ApiToApiExecutor
         if (!contract.Enabled)
             return null;
 
-        if (string.IsNullOrWhiteSpace(contract.Source?.Endpoint) || string.IsNullOrWhiteSpace(contract.Sink?.Endpoint))
+        if (string.IsNullOrWhiteSpace(contract.Source?.Endpoint) ||
+            string.IsNullOrWhiteSpace(contract.Sink?.Endpoint))
         {
             _logger.LogWarning("[{Contract}] Missing Source.Endpoint or Sink.Endpoint.", contract.ContractId);
             return null;
@@ -70,91 +76,7 @@ public class ApiToApiExecutor
             throw;
         }
 
-        var sinkPayload = new JsonObject();
-
-        foreach (var m in contract.Mappings ?? Array.Empty<ApiFieldConfig>())
-        {
-            switch (m.TransformationType)
-            {
-                case TransformationType.Direct:
-                {
-                    if (m.SourceFieldName.IsEmpty || m.SinkFieldName.IsEmpty)
-                        break;
-
-                    if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var v) || v is null)
-                        break;
-
-                    sinkPayload[m.SinkFieldName.Value!] = v.DeepClone();
-                    break;
-                }
-
-                case TransformationType.Split:
-                {
-                    if (m.SourceFieldName.IsEmpty ||
-                        m.SinkFields is null || m.SinkFields.Length == 0 ||
-                        m.SinkFields.All(x => x.IsEmpty))
-                        break;
-
-                    if (!TryGetValueCaseInsensitive(sourceObj, m.SourceFieldName, out var node) || node is null)
-                        break;
-
-                    var input = node.ToString();
-                    if (string.IsNullOrWhiteSpace(input))
-                        break;
-
-                    var sep = string.IsNullOrEmpty(m.Separator) ? " " : m.Separator;
-
-                    var parts = sep == " "
-                        ? input.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        : input.Split(sep, StringSplitOptions.None).Select(p => p.Trim()).ToArray();
-
-                    for (var i = 0; i < m.SinkFields.Length; i++)
-                    {
-                        var sinkField = m.SinkFields[i];
-                        if (sinkField.IsEmpty)
-                            continue;
-
-                        if (i >= parts.Length)
-                            break;
-
-                        sinkPayload[sinkField.Value!] = parts[i];
-                    }
-
-                    break;
-                }
-
-                case TransformationType.Join:
-                {
-                    if (m.SinkFieldName.IsEmpty ||
-                        m.SourceFields is null || m.SourceFields.Length == 0 ||
-                        m.SourceFields.All(x => x.IsEmpty))
-                        break;
-
-                    var sep = string.IsNullOrEmpty(m.Separator) ? " " : m.Separator;
-
-                    var values = new List<string>();
-
-                    foreach (var f in m.SourceFields)
-                    {
-                        if (f.IsEmpty)
-                            continue;
-
-                        if (!TryGetValueCaseInsensitive(sourceObj, f, out var n) || n is null)
-                            continue;
-
-                        var s = n.ToString();
-                        if (!string.IsNullOrWhiteSpace(s))
-                            values.Add(s.Trim());
-                    }
-
-                    if (values.Count == 0)
-                        break;
-
-                    sinkPayload[m.SinkFieldName.Value!] = string.Join(sep, values);
-                    break;
-                }
-            }
-        }
+        var sinkPayload = _mappingEngine.BuildSinkPayload(sourceObj, contract.Mappings);
 
         if (sinkPayload.Count == 0)
         {
@@ -214,27 +136,5 @@ public class ApiToApiExecutor
 
             throw;
         }
-    }
-
-    private static bool TryGetValueCaseInsensitive(JsonObject obj, SourceField key, out JsonNode? value)
-    {
-        value = null;
-
-        if (key.IsEmpty || key.Value is null)
-            return false;
-
-        if (obj.TryGetPropertyValue(key.Value, out value))
-            return true;
-
-        foreach (var kv in obj)
-        {
-            if (string.Equals(kv.Key, key.Value, StringComparison.OrdinalIgnoreCase))
-            {
-                value = kv.Value;
-                return true;
-            }
-        }
-
-        return false;
     }
 }

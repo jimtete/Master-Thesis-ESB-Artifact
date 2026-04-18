@@ -5,4 +5,5 @@ public enum TransformationType
     Direct,
     Split,
     Join,
+    Expression,
 }

@@ -549,6 +549,10 @@ public class ContractsExplorerService : IContractsExplorerService
             ? " "
             : mapping.Separator;
 
+        var expression = string.IsNullOrWhiteSpace(mapping.Expression)
+            ? null
+            : mapping.Expression.Trim();
+
         return transformationType switch
         {
             "Direct" when sourceFields.Length > 0 && targetFields.Length > 0 => new
@@ -573,6 +577,15 @@ public class ContractsExplorerService : IContractsExplorerService
                 SinkFieldName = targetFields[0],
                 TransformationType = "Join",
                 Separator = separator
+            },
+
+            "Expression" when sourceFields.Length > 0 && targetFields.Length > 0 && !string.IsNullOrWhiteSpace(expression) => new
+            {
+                SourceFields = sourceFields,
+                SinkFields = targetFields,
+                TransformationType = "Expression",
+                Separator = separator,
+                Expression = expression
             },
 
             _ => null

@@ -14,6 +14,8 @@
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
+
         <HierarchicalDataTemplate DataType="{x:Type models:FileExplorerNode}"
                                   ItemsSource="{Binding Children}">
             <DockPanel LastChildFill="True">
@@ -37,8 +39,6 @@
                            Text="{Binding Name}" />
             </DockPanel>
         </HierarchicalDataTemplate>
-
-        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     </Window.Resources>
 
     <Grid Margin="12">
@@ -347,10 +347,12 @@
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Source Fields"
                                                             Binding="{Binding SourceFieldsText, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="*"/>
+                                                            Width="*" />
+
                                         <DataGridTextColumn Header="Target Fields"
                                                             Binding="{Binding TargetFieldsText, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="*"/>
+                                                            Width="*" />
+
                                         <DataGridComboBoxColumn Header="Transformation"
                                                                 SelectedItemBinding="{Binding Transformation, UpdateSourceTrigger=PropertyChanged}"
                                                                 Width="140">
@@ -359,18 +361,53 @@
                                                     <sys:String>Direct</sys:String>
                                                     <sys:String>Join</sys:String>
                                                     <sys:String>Split</sys:String>
+                                                    <sys:String>Expression</sys:String>
                                                 </x:Array>
                                             </DataGridComboBoxColumn.ItemsSource>
                                         </DataGridComboBoxColumn>
+
                                         <DataGridTextColumn Header="Separator"
                                                             Binding="{Binding Separator, UpdateSourceTrigger=PropertyChanged}"
-                                                            Width="100"/>
+                                                            Width="100" />
+
+                                        <DataGridTemplateColumn Header="Expression" Width="2*">
+                                            <DataGridTemplateColumn.CellStyle>
+                                                <Style TargetType="DataGridCell">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                    <Setter Property="ToolTip" Value="Select Expression as the transformation type to edit this field." />
+
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Transformation}" Value="Expression">
+                                                            <Setter Property="IsEnabled" Value="True" />
+                                                            <Setter Property="ToolTip" Value="{x:Null}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DataGridTemplateColumn.CellStyle>
+
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Expression}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="Gray" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+
+                                            <DataGridTemplateColumn.CellEditingTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Text="{Binding Expression, UpdateSourceTrigger=PropertyChanged}"
+                                                             VerticalContentAlignment="Center" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellEditingTemplate>
+                                        </DataGridTemplateColumn>
+
                                         <DataGridTemplateColumn Header="Actions" Width="110">
                                             <DataGridTemplateColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <Button Content="Remove"
                                                             Command="{Binding DataContext.ContractCreator.RemoveMappingCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding}"/>
+                                                            CommandParameter="{Binding}" />
                                                 </DataTemplate>
                                             </DataGridTemplateColumn.CellTemplate>
                                         </DataGridTemplateColumn>

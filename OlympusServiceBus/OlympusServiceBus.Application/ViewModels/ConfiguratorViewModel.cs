@@ -520,7 +520,10 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
                 Transformation = transformation,
                 Separator = mappingElement.TryGetProperty("Separator", out var separatorElement)
                     ? separatorElement.GetString() ?? " "
-                    : " "
+                    : " ",
+                Expression = mappingElement.TryGetProperty("Expression", out var expressionElement)
+                    ? expressionElement.GetString() ?? string.Empty
+                    : string.Empty
             });
         }
 
