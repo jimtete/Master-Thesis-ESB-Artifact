@@ -1,5 +1,5 @@
 using System.Text.Json.Nodes;
-using OlympusServiceBus.Engine.Execution.AntiContracts;
+using OlympusServiceBus.Engine.Execution.FeedbackContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.RuntimeState.Models;
 using OlympusServiceBus.RuntimeState.Services;
@@ -14,8 +14,8 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
     private readonly IContractMessageStateService _messageStateService;
     private readonly ApiToApiBusinessKeyProvider _businessKeyProvider;
     private readonly ApiToApiPayloadHashProvider _payloadHashProvider;
-    private readonly IAntiContractRegistry _antiContractRegistry;
-    private readonly AntiContractDispatcher _antiContractDispatcher;
+    private readonly IFeedbackContractRegistry _feedbackContractRegistry;
+    private readonly FeedbackContractDispatcher _feedbackContractDispatcher;
 
     public ApiToApiExecutionService(
         ApiToApiExecutor executor,
@@ -23,16 +23,16 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         IContractMessageStateService messageStateService,
         ApiToApiBusinessKeyProvider businessKeyProvider,
         ApiToApiPayloadHashProvider payloadHashProvider,
-        IAntiContractRegistry antiContractRegistry,
-        AntiContractDispatcher antiContractDispatcher)
+        IFeedbackContractRegistry feedbackContractRegistry,
+        FeedbackContractDispatcher feedbackContractDispatcher)
     {
         _executor = executor;
         _executionStateService = executionStateService;
         _messageStateService = messageStateService;
         _businessKeyProvider = businessKeyProvider;
         _payloadHashProvider = payloadHashProvider;
-        _antiContractRegistry = antiContractRegistry;
-        _antiContractDispatcher = antiContractDispatcher;
+        _feedbackContractRegistry = feedbackContractRegistry;
+        _feedbackContractDispatcher = feedbackContractDispatcher;
     }
 
     public async Task ExecuteAsync(ApiToApiContract contract, CancellationToken cancellationToken)
@@ -179,7 +179,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
                 await _messageStateService.SaveAsync(message, cancellationToken);
 
-                await DispatchAntiContractsAsync(
+                await DispatchFeedbackContractsAsync(
                     contract,
                     message.BusinessKey,
                     null,
@@ -197,7 +197,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
                 await _messageStateService.SaveAsync(message, cancellationToken);
 
-                await DispatchAntiContractsAsync(
+                await DispatchFeedbackContractsAsync(
                     contract,
                     message.BusinessKey,
                     null,
@@ -211,7 +211,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         }
     }
 
-    private async Task DispatchAntiContractsAsync(
+    private async Task DispatchFeedbackContractsAsync(
         ContractBase contract,
         string businessKey,
         JsonObject? originalPayload,
@@ -222,16 +222,16 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         string? errorCode,
         CancellationToken cancellationToken)
     {
-        var antiContracts = _antiContractRegistry.GetBySourceContractId(contract.ContractId);
-        if (antiContracts.Count == 0)
+        var feedbackContracts = _feedbackContractRegistry.GetBySourceContractId(contract.ContractId);
+        if (feedbackContracts.Count == 0)
             return;
 
         var correlationValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var antiContract in antiContracts)
+        foreach (var feedbackContract in feedbackContracts)
         {
-            var values = AntiContractCorrelationValueFactory.Create(
-                antiContract,
+            var values = FeedbackContractCorrelationValueFactory.Create(
+                feedbackContract,
                 originalPayload,
                 transformedPayload,
                 responsePayload);
@@ -243,14 +243,14 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         }
 
         var context = string.Equals(executionStatus, "Success", StringComparison.OrdinalIgnoreCase)
-            ? AntiContractExecutionContextFactory.CreateSuccess(
+            ? FeedbackContractExecutionContextFactory.CreateSuccess(
                 contract,
                 businessKey,
                 originalPayload,
                 transformedPayload,
                 responsePayload,
                 correlationValues)
-            : AntiContractExecutionContextFactory.CreateFailure(
+            : FeedbackContractExecutionContextFactory.CreateFailure(
                 contract,
                 businessKey,
                 errorMessage,
@@ -260,7 +260,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 responsePayload,
                 correlationValues);
 
-        await _antiContractDispatcher.DispatchAsync(
+        await _feedbackContractDispatcher.DispatchAsync(
             contract.ContractId,
             context,
             cancellationToken);

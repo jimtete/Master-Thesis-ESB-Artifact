@@ -1,6 +1,6 @@
-namespace OlympusServiceBus.Utils.Contracts.AntiContracts;
+namespace OlympusServiceBus.Utils.Contracts.FeedbackContracts;
 
-public sealed class ApiStatusAntiContract : AntiContractBase
+public sealed class ApiStatusFeedbackContract : FeedbackContractBase
 {
     /// <summary>
     /// Logical target system that will receive the reverse-direction status message.
@@ -13,13 +13,13 @@ public sealed class ApiStatusAntiContract : AntiContractBase
     public string Endpoint { get; set; } = string.Empty;
 
     /// <summary>
-    /// HTTP method for the Anti-Contract call.
+    /// HTTP method for the FeedbackContract call.
     /// Suggested values: POST, PUT, PATCH
     /// </summary>
     public string Method { get; set; } = "POST";
 
     /// <summary>
-    /// Maps runtime values into the outbound Anti-Contract payload.
+    /// Maps runtime values into the outbound FeedbackContract payload.
     /// Key = outbound field name
     /// Value = source expression / field path
     /// </summary>
@@ -37,12 +37,12 @@ public sealed class ApiStatusAntiContract : AntiContractBase
     public Dictionary<string, string> StatusMappings { get; set; } = new();
 
     /// <summary>
-    /// Optional timeout in seconds for the outbound Anti-Contract call.
+    /// Optional timeout in seconds for the outbound FeedbackContract call.
     /// </summary>
     public int? TimeoutSeconds { get; set; }
 
     /// <summary>
-    /// Whether the Anti-Contract should be attempted again on transient failure.
+    /// Whether the FeedbackContract should be attempted again on transient failure.
     /// </summary>
     public bool RetryOnFailure { get; set; } = true;
 }

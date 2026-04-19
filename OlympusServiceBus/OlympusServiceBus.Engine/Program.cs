@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
-using OlympusServiceBus.Engine.Execution.AntiContracts;
+using OlympusServiceBus.Engine.Execution.FeedbackContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.ApiToFile;
 using OlympusServiceBus.Engine.Execution.Files;
@@ -26,7 +26,7 @@ var contractsDirectoryPath = GetContractsDirectoryPath(appDataDirectoryPath);
 
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
-builder.Services.AddHttpClient<ApiStatusAntiContractExecutor>();
+builder.Services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();
@@ -47,14 +47,14 @@ builder.Services.AddScoped<FileToApiExecutor>();
 builder.Services.AddScoped<ApiToFileExecutor>();
 builder.Services.AddScoped<FileToFileExecutor>();
 
-// Anti-Contract services
-builder.Services.AddScoped<IAntiContractExecutor>(sp =>
-    sp.GetRequiredService<ApiStatusAntiContractExecutor>());
-builder.Services.AddScoped<AntiContractExecutionService>();
-builder.Services.AddScoped<AntiContractDispatcher>();
+// FeedbackContract services
+builder.Services.AddScoped<IFeedbackContractExecutor>(sp =>
+    sp.GetRequiredService<ApiStatusFeedbackContractExecutor>());
+builder.Services.AddScoped<FeedbackContractExecutionService>();
+builder.Services.AddScoped<FeedbackContractDispatcher>();
 
 builder.Services.AddSingleton<IContractRegistry, InMemoryContractRegistry>();
-builder.Services.AddSingleton<IAntiContractRegistry, InMemoryAntiContractRegistry>();
+builder.Services.AddSingleton<IFeedbackContractRegistry, InMemoryFeedbackContractRegistry>();
 builder.Services.AddSingleton<IContractLoader, ContractLoader>();
 builder.Services.AddSingleton<ApiToApiExecutor>();
 
@@ -87,21 +87,21 @@ using (var scope = host.Services.CreateScope())
 {
     var loader = scope.ServiceProvider.GetRequiredService<IContractLoader>();
     var registry = scope.ServiceProvider.GetRequiredService<IContractRegistry>();
-    var antiContractRegistry = scope.ServiceProvider.GetRequiredService<IAntiContractRegistry>();
+    var feedbackContractRegistry = scope.ServiceProvider.GetRequiredService<IFeedbackContractRegistry>();
 
     var contracts = loader.LoadAllContracts(contractsDirectoryPath);
     ContractSchedulingBootstrapValidator.ValidateAll(contracts);
     registry.SetAllContracts(contracts);
 
-    var antiContracts = loader.LoadAllAntiContracts(contractsDirectoryPath);
-    antiContractRegistry.SetAllAntiContracts(antiContracts);
+    var feedbackContracts = loader.LoadAllFeedbackContracts(contractsDirectoryPath);
+    feedbackContractRegistry.SetAllFeedbackContracts(feedbackContracts);
 
     var startupLogger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
         .CreateLogger("Startup");
 
     startupLogger.LogInformation("Contracts directory: {ContractsDirectory}", contractsDirectoryPath);
     startupLogger.LogInformation("Forward contracts loaded at startup: {Count}", contracts.Count);
-    startupLogger.LogInformation("Anti-contracts loaded at startup: {Count}", antiContracts.Count);
+    startupLogger.LogInformation("FeedbackContracts loaded at startup: {Count}", feedbackContracts.Count);
 }
 
 await host.RunAsync();

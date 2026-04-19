@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using OlympusServiceBus.Utils.Configuration;
 using OlympusServiceBus.Utils.Contracts;
-using OlympusServiceBus.Utils.Contracts.AntiContracts;
+using OlympusServiceBus.Utils.Contracts.FeedbackContracts;
 
 namespace OlympusServiceBus.Engine.Helpers;
 
@@ -178,24 +178,24 @@ public sealed class ContractLoader : IContractLoader
         return result;
     }
 
-    public List<AntiContractBase> LoadAllAntiContracts(string contractDirectory)
+    public List<FeedbackContractBase> LoadAllFeedbackContracts(string contractDirectory)
     {
         var dir = ResolveContractsDirectory(contractDirectory);
         if (!Directory.Exists(dir))
         {
             _logger.LogWarning("Contracts directory not found: {Dir}", dir);
-            return new List<AntiContractBase>();
+            return new List<FeedbackContractBase>();
         }
 
         var files = Directory.EnumerateFiles(dir, "*.json", SearchOption.AllDirectories).ToList();
 
-        _logger.LogInformation("Scanning anti-contracts in {Dir}. JSON files found: {Count}", dir, files.Count);
+        _logger.LogInformation("Scanning feedback-contracts in {Dir}. JSON files found: {Count}", dir, files.Count);
 
-        var loadedAntiContracts = new List<LoadedAntiContract>();
+        var loadedFeedbackContracts = new List<LoadedFeedbackContract>();
 
         foreach (var file in files)
         {
-            if (ShouldSkipAntiContractFile(file))
+            if (ShouldSkipFeedbackContractFile(file))
             {
                 continue;
             }
@@ -204,7 +204,7 @@ public sealed class ContractLoader : IContractLoader
 
             if (string.IsNullOrWhiteSpace(json))
             {
-                _logger.LogWarning("Skipping empty anti-contract file: {File}", file);
+                _logger.LogWarning("Skipping empty feedback-contract file: {File}", file);
                 continue;
             }
 
@@ -212,41 +212,41 @@ public sealed class ContractLoader : IContractLoader
             {
                 // ---- Wrapper shapes ----
 
-                var apiStatus = JsonSerializer.Deserialize<ApiStatusAntiContractDocument>(json, JsonOptions);
-                if (apiStatus?.ApiStatusAntiContract is not null)
+                var apiStatus = JsonSerializer.Deserialize<ApiStatusFeedbackContractDocument>(json, JsonOptions);
+                if (apiStatus?.ApiStatusFeedbackContract is not null)
                 {
-                    EnsureAntiContractId(apiStatus.ApiStatusAntiContract, file);
-                    loadedAntiContracts.Add(new LoadedAntiContract(apiStatus.ApiStatusAntiContract, file));
+                    EnsureFeedbackContractId(apiStatus.ApiStatusFeedbackContract, file);
+                    loadedFeedbackContracts.Add(new LoadedFeedbackContract(apiStatus.ApiStatusFeedbackContract, file));
                     continue;
                 }
 
                 // ---- Direct shapes ----
 
-                var directApiStatus = JsonSerializer.Deserialize<ApiStatusAntiContract>(json, JsonOptions);
-                if (directApiStatus is not null && LooksLikeAntiContract(directApiStatus))
+                var directApiStatus = JsonSerializer.Deserialize<ApiStatusFeedbackContract>(json, JsonOptions);
+                if (directApiStatus is not null && LooksLikeFeedbackContract(directApiStatus))
                 {
-                    EnsureAntiContractId(directApiStatus, file);
-                    loadedAntiContracts.Add(new LoadedAntiContract(directApiStatus, file));
+                    EnsureFeedbackContractId(directApiStatus, file);
+                    loadedFeedbackContracts.Add(new LoadedFeedbackContract(directApiStatus, file));
                     continue;
                 }
 
-                _logger.LogWarning("Skipping unrecognized anti-contract JSON file: {File}", file);
+                _logger.LogWarning("Skipping unrecognized feedback-contract JSON file: {File}", file);
             }
             catch (JsonException e)
             {
-                _logger.LogWarning(e, "Skipping invalid anti-contract JSON file: {File}", file);
+                _logger.LogWarning(e, "Skipping invalid feedback-contract JSON file: {File}", file);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Unexpected error while loading anti-contract from file: {File}", file);
+                _logger.LogError(e, "Unexpected error while loading feedback-contract from file: {File}", file);
             }
         }
 
-        var result = SanitizeAntiContracts(loadedAntiContracts)
+        var result = SanitizeFeedbackContracts(loadedFeedbackContracts)
             .Select(x => x.Contract)
             .ToList();
 
-        _logger.LogInformation("Anti-contracts loaded: {Count}", result.Count);
+        _logger.LogInformation("FeedbackContracts loaded: {Count}", result.Count);
         return result;
     }
 
@@ -256,7 +256,7 @@ public sealed class ContractLoader : IContractLoader
             contract.ContractId = Path.GetFileNameWithoutExtension(filePath);
     }
 
-    private static void EnsureAntiContractId(AntiContractBase contract, string filePath)
+    private static void EnsureFeedbackContractId(FeedbackContractBase contract, string filePath)
     {
         if (string.IsNullOrWhiteSpace(contract.ContractId))
             contract.ContractId = Path.GetFileNameWithoutExtension(filePath);
@@ -268,7 +268,7 @@ public sealed class ContractLoader : IContractLoader
                !string.IsNullOrWhiteSpace(contract.Name);
     }
 
-    private static bool LooksLikeAntiContract(AntiContractBase? contract)
+    private static bool LooksLikeFeedbackContract(FeedbackContractBase? contract)
     {
         return contract is not null &&
                !string.IsNullOrWhiteSpace(contract.ContractType);
@@ -317,9 +317,9 @@ public sealed class ContractLoader : IContractLoader
         return result;
     }
 
-    private List<LoadedAntiContract> SanitizeAntiContracts(List<LoadedAntiContract> contracts)
+    private List<LoadedFeedbackContract> SanitizeFeedbackContracts(List<LoadedFeedbackContract> contracts)
     {
-        var result = new List<LoadedAntiContract>();
+        var result = new List<LoadedFeedbackContract>();
         var seenContractIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var item in contracts)
@@ -327,7 +327,7 @@ public sealed class ContractLoader : IContractLoader
             if (string.IsNullOrWhiteSpace(item.Contract.ContractId))
             {
                 _logger.LogWarning(
-                    "Skipping anti-contract because ContractId is missing. File: {File}",
+                    "Skipping feedback-contract because ContractId is missing. File: {File}",
                     item.FilePath);
                 continue;
             }
@@ -337,7 +337,7 @@ public sealed class ContractLoader : IContractLoader
             if (!seenContractIds.Add(normalizedContractId))
             {
                 _logger.LogWarning(
-                    "Skipping duplicate anti-contract '{ContractId}'. File: {File}",
+                    "Skipping duplicate feedback-contract '{ContractId}'. File: {File}",
                     normalizedContractId,
                     item.FilePath);
                 continue;
@@ -361,7 +361,7 @@ public sealed class ContractLoader : IContractLoader
     }
 
     private sealed record LoadedContract(ContractBase Contract, string FilePath);
-    private sealed record LoadedAntiContract(AntiContractBase Contract, string FilePath);
+    private sealed record LoadedFeedbackContract(FeedbackContractBase Contract, string FilePath);
 
     private sealed class ApiToApiDocument
     {
@@ -393,19 +393,19 @@ public sealed class ContractLoader : IContractLoader
         public PortToFileContract? PortToFile { get; set; }
     }
 
-    private sealed class ApiStatusAntiContractDocument
+    private sealed class ApiStatusFeedbackContractDocument
     {
-        public ApiStatusAntiContract? ApiStatusAntiContract { get; set; }
+        public ApiStatusFeedbackContract? ApiStatusFeedbackContract { get; set; }
     }
 
     private static bool ShouldSkipForwardContractFile(string filePath)
     {
-        return filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
+        return filePath.Contains($"{Path.DirectorySeparatorChar}feedback{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
                || filePath.Contains($"{Path.DirectorySeparatorChar}Input{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ShouldSkipAntiContractFile(string filePath)
+    private static bool ShouldSkipFeedbackContractFile(string filePath)
     {
-        return !filePath.Contains($"{Path.DirectorySeparatorChar}anti{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
+        return !filePath.Contains($"{Path.DirectorySeparatorChar}feedback{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 }

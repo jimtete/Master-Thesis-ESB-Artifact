@@ -1,18 +1,18 @@
-namespace OlympusServiceBus.Utils.Contracts.AntiContracts;
+namespace OlympusServiceBus.Utils.Contracts.FeedbackContracts;
 
-public abstract class AntiContractBase
+public abstract class FeedbackContractBase
 {
     public string ContractId { get; set; } = string.Empty;
     public string ContractType { get; set; } = string.Empty;
 
     /// <summary>
     /// Logical name of the originating flow or source contract.
-    /// Helps correlate the Anti-Contract with the forward Contract.
+    /// Helps correlate the FeedbackContract with the forward Contract.
     /// </summary>
     public string SourceContractId { get; set; } = string.Empty;
 
     /// <summary>
-    /// Defines whether this Anti-Contract is triggered after success,
+    /// Defines whether this FeedbackContract is triggered after success,
     /// failure, or always.
     /// Suggested values: OnSuccess, OnFailure, Always
     /// </summary>
