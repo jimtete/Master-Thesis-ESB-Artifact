@@ -1,11 +1,11 @@
 using System.Text.Json.Nodes;
 using OlympusServiceBus.Utils.Contracts;
 
-namespace OlympusServiceBus.Engine.Execution.AntiContracts;
+namespace OlympusServiceBus.Engine.Execution.FeedbackContracts;
 
-public static class AntiContractExecutionContextFactory
+public static class FeedbackContractExecutionContextFactory
 {
-    public static AntiContractExecutionContext CreateSuccess(
+    public static FeedbackContractExecutionContext CreateSuccess(
         ContractBase sourceContract,
         string businessKey,
         JsonObject? originalPayload,
@@ -15,7 +15,7 @@ public static class AntiContractExecutionContextFactory
     {
         ArgumentNullException.ThrowIfNull(sourceContract);
 
-        return new AntiContractExecutionContext
+        return new FeedbackContractExecutionContext
         {
             SourceContractId = sourceContract.ContractId,
             SourceContractName = sourceContract.Name,
@@ -29,7 +29,7 @@ public static class AntiContractExecutionContextFactory
         };
     }
 
-    public static AntiContractExecutionContext CreateFailure(
+    public static FeedbackContractExecutionContext CreateFailure(
         ContractBase sourceContract,
         string businessKey,
         string? errorMessage,
@@ -41,7 +41,7 @@ public static class AntiContractExecutionContextFactory
     {
         ArgumentNullException.ThrowIfNull(sourceContract);
 
-        return new AntiContractExecutionContext
+        return new FeedbackContractExecutionContext
         {
             SourceContractId = sourceContract.ContractId,
             SourceContractName = sourceContract.Name,

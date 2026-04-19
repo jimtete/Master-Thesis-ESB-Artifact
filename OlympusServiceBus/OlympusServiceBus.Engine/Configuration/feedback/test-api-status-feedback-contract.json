@@ -1,7 +1,7 @@
 {
-  "ApiStatusAntiContract": {
+  "ApiStatusFeedbackContract": {
     "ContractId": "guest-registration-to-meetings-status-return",
-    "ContractType": "ApiStatusAntiContract",
+    "ContractType": "ApiStatusFeedbackContract",
     "SourceContractId": "guest-registration-to-meetings-mock-3",
     "TriggerMode": "Always",
     "CorrelationFields": [

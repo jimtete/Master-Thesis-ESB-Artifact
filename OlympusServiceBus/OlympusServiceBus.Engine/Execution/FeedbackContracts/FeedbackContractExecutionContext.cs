@@ -1,8 +1,8 @@
 using System.Text.Json.Nodes;
 
-namespace OlympusServiceBus.Engine.Execution.AntiContracts;
+namespace OlympusServiceBus.Engine.Execution.FeedbackContracts;
 
-public sealed class AntiContractExecutionContext
+public sealed class FeedbackContractExecutionContext
 {
     /// <summary>
     /// The forward contract that produced this execution outcome.

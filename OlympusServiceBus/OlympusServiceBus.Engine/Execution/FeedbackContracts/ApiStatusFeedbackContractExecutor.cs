@@ -1,36 +1,36 @@
 using System.Text;
 using System.Text.Json.Nodes;
-using OlympusServiceBus.Utils.Contracts.AntiContracts;
+using OlympusServiceBus.Utils.Contracts.FeedbackContracts;
 
-namespace OlympusServiceBus.Engine.Execution.AntiContracts;
+namespace OlympusServiceBus.Engine.Execution.FeedbackContracts;
 
-public class ApiStatusAntiContractExecutor : IAntiContractExecutor
+public class ApiStatusFeedbackContractExecutor : IFeedbackContractExecutor
 {
     private readonly HttpClient _httpClient;
-    private readonly ILogger<ApiStatusAntiContractExecutor> _logger;
+    private readonly ILogger<ApiStatusFeedbackContractExecutor> _logger;
 
-    public ApiStatusAntiContractExecutor(
+    public ApiStatusFeedbackContractExecutor(
         HttpClient httpClient, 
-        ILogger<ApiStatusAntiContractExecutor> logger)
+        ILogger<ApiStatusFeedbackContractExecutor> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
     }
 
-    public bool CanExecute(AntiContractBase antiContract)
+    public bool CanExecute(FeedbackContractBase feedbackContract)
     {
-        return antiContract is ApiStatusAntiContract;
+        return feedbackContract is ApiStatusFeedbackContract;
     }
 
     public async Task ExecuteAsync(
-        AntiContractBase antiContract,
-        AntiContractExecutionContext context,
+        FeedbackContractBase feedbackContract,
+        FeedbackContractExecutionContext context,
         CancellationToken cancellationToken = default)
     {
-        if (antiContract is not ApiStatusAntiContract contract)
+        if (feedbackContract is not ApiStatusFeedbackContract contract)
         {
             throw new InvalidOperationException(
-                $"Unsupported anti-contract type: {antiContract.GetType().Name}");
+                $"Unsupported feedback-contract type: {feedbackContract.GetType().Name}");
         }
 
         var payload = BuildPayload(contract, context);
@@ -39,7 +39,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
         if (string.IsNullOrWhiteSpace(endpoint))
         {
             throw new InvalidOperationException(
-                $"Anti-contract '{contract.ContractId}' does not define an endpoint.");
+                $"FeedbackContract '{contract.ContractId}' does not define an endpoint.");
         }
 
         using var request = new HttpRequestMessage(
@@ -52,7 +52,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
             "application/json");
 
         _logger.LogInformation(
-            "Executing ApiStatusAntiContract {ContractId} for source contract {SourceContractId} with business key {BusinessKey}",
+            "Executing ApiStatusFeedbackContract {ContractId} for source contract {SourceContractId} with business key {BusinessKey}",
             contract.ContractId,
             context.SourceContractId,
             context.BusinessKey);
@@ -66,7 +66,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
             var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
             _logger.LogWarning(
-                "Anti-contract {ContractId} failed with status code {StatusCode}. Response: {ResponseBody}",
+                "FeedbackContract {ContractId} failed with status code {StatusCode}. Response: {ResponseBody}",
                 contract.ContractId,
                 (int)response.StatusCode,
                 responseBody);
@@ -75,14 +75,14 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
         }
 
         _logger.LogInformation(
-            "Anti-contract {ContractId} executed successfully for business key {BusinessKey}",
+            "FeedbackContract {ContractId} executed successfully for business key {BusinessKey}",
             contract.ContractId,
             context.BusinessKey);
     }
     
     private static JsonObject BuildPayload(
-        ApiStatusAntiContract contract,
-        AntiContractExecutionContext context)
+        ApiStatusFeedbackContract contract,
+        FeedbackContractExecutionContext context)
     {
         var payload = new JsonObject();
 
@@ -121,7 +121,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
         return payload;
     }
     
-    private static string? ResolveMappedValue(string expression, AntiContractExecutionContext context)
+    private static string? ResolveMappedValue(string expression, FeedbackContractExecutionContext context)
     {
         if (string.IsNullOrWhiteSpace(expression))
             return null;
@@ -143,7 +143,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
         };
     }
 
-    private static string? ResolveCorrelationValue(string expression, AntiContractExecutionContext context)
+    private static string? ResolveCorrelationValue(string expression, FeedbackContractExecutionContext context)
     {
         var key = expression["$correlation.".Length..];
 
@@ -152,7 +152,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
             : null;
     }
 
-    private static string? ResolveJsonPathLikeValue(string expression, AntiContractExecutionContext context)
+    private static string? ResolveJsonPathLikeValue(string expression, FeedbackContractExecutionContext context)
     {
         if (expression.StartsWith("$.original.", StringComparison.OrdinalIgnoreCase))
         {
@@ -194,7 +194,7 @@ public class ApiStatusAntiContractExecutor : IAntiContractExecutor
         return current?.ToString();
     }
 
-    private static string ResolveMappedStatus(ApiStatusAntiContract contract, string executionStatus)
+    private static string ResolveMappedStatus(ApiStatusFeedbackContract contract, string executionStatus)
     {
         if (string.IsNullOrWhiteSpace(executionStatus))
         {

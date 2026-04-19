@@ -1,21 +1,21 @@
 using System.Text.Json.Nodes;
-using OlympusServiceBus.Utils.Contracts.AntiContracts;
+using OlympusServiceBus.Utils.Contracts.FeedbackContracts;
 
-namespace OlympusServiceBus.Engine.Execution.AntiContracts;
+namespace OlympusServiceBus.Engine.Execution.FeedbackContracts;
 
-public static class AntiContractCorrelationValueFactory
+public static class FeedbackContractCorrelationValueFactory
 {
     public static Dictionary<string, string> Create(
-        AntiContractBase antiContract,
+        FeedbackContractBase feedbackContract,
         JsonObject? originalPayload,
         JsonObject? transformedPayload,
         JsonObject? responsePayload)
     {
-        ArgumentNullException.ThrowIfNull(antiContract);
+        ArgumentNullException.ThrowIfNull(feedbackContract);
 
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var field in antiContract.CorrelationFields)
+        foreach (var field in feedbackContract.CorrelationFields)
         {
             if (string.IsNullOrWhiteSpace(field))
                 continue;

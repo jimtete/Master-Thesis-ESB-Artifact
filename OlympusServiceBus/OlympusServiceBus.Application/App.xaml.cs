@@ -1,8 +1,8 @@
-﻿using System.Windows;
+using System.Windows;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OlympusServiceBus.Engine.Execution.AntiContracts;
+using OlympusServiceBus.Engine.Execution.FeedbackContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.ApiToFile;
 using OlympusServiceBus.Engine.Execution.Files;
@@ -61,7 +61,7 @@ public partial class App : Application
         services.AddLogging();
         services.AddHttpClient();
         services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
-        services.AddHttpClient<ApiStatusAntiContractExecutor>();
+        services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
 
         services.AddDbContext<RuntimeStateDbContext>(options =>
             options.UseSqlite($"Data Source={runtimeStateDbPath}"));
@@ -103,11 +103,11 @@ public partial class App : Application
         services.AddSingleton<IExpressionEvaluator, ExpressionEvaluator>();
         services.AddSingleton<IMappingEngine, MappingEngine>();
 
-        services.AddSingleton<IAntiContractRegistry, InMemoryAntiContractRegistry>();
-        services.AddScoped<IAntiContractExecutor>(sp =>
-            sp.GetRequiredService<ApiStatusAntiContractExecutor>());
-        services.AddScoped<AntiContractExecutionService>();
-        services.AddScoped<AntiContractDispatcher>();
+        services.AddSingleton<IFeedbackContractRegistry, InMemoryFeedbackContractRegistry>();
+        services.AddScoped<IFeedbackContractExecutor>(sp =>
+            sp.GetRequiredService<ApiStatusFeedbackContractExecutor>());
+        services.AddScoped<FeedbackContractExecutionService>();
+        services.AddScoped<FeedbackContractDispatcher>();
     }
 
     private static string GetOlympusAppDataDirectoryPath()

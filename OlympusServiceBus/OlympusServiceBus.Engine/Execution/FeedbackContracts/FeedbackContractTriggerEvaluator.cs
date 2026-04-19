@@ -1,20 +1,20 @@
-using OlympusServiceBus.Utils.Contracts.AntiContracts;
+using OlympusServiceBus.Utils.Contracts.FeedbackContracts;
 
-namespace OlympusServiceBus.Engine.Execution.AntiContracts;
+namespace OlympusServiceBus.Engine.Execution.FeedbackContracts;
 
-public static class AntiContractTriggerEvaluator
+public static class FeedbackContractTriggerEvaluator
 {
     public static bool ShouldExecute(
-        AntiContractBase antiContract,
+        FeedbackContractBase feedbackContract,
         string executionStatus)
     {
-        if (antiContract is null)
-            throw new ArgumentNullException(nameof(antiContract));
+        if (feedbackContract is null)
+            throw new ArgumentNullException(nameof(feedbackContract));
 
-        if (string.IsNullOrWhiteSpace(antiContract.TriggerMode))
+        if (string.IsNullOrWhiteSpace(feedbackContract.TriggerMode))
             return false;
 
-        var triggerMode = antiContract.TriggerMode.Trim();
+        var triggerMode = feedbackContract.TriggerMode.Trim();
 
         if (string.Equals(triggerMode, "Always", StringComparison.OrdinalIgnoreCase))
             return true;
