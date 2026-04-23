@@ -22,6 +22,7 @@ public partial class ConfiguratorWindow : Window
 
         Loaded += ConfiguratorWindow_Loaded;
         AddHandler(TreeViewItem.SelectedEvent, new RoutedEventHandler(TreeViewItem_Selected));
+        System.Windows.DataObject.AddPastingHandler(ContractNameTextBox, ContractNameTextBox_Pasting);
     }
 
     private async void ConfiguratorWindow_Loaded(object sender, RoutedEventArgs e)
@@ -92,6 +93,48 @@ public partial class ConfiguratorWindow : Window
     {
         _viewModel.ClearContractSelectionCommand.Execute(null);
         ClearTreeViewSelection(ContractsTreeView);
+    }
+
+    private void ContractsTreeView_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var selectedNode = _viewModel.SelectedNode;
+        var isContract = selectedNode is { IsDirectory: false };
+
+        EnableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: false };
+        DisableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: true };
+    }
+
+    private async void EnableSelectedContract_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetContractEnabledAsync(_viewModel.SelectedNode, true);
+    }
+
+    private async void DisableSelectedContract_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetContractEnabledAsync(_viewModel.SelectedNode, false);
+    }
+
+    private void ContractNameTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = ContainsWhitespace(e.Text);
+    }
+
+    private void ContractNameTextBox_Pasting(object sender, DataObjectPastingEventArgs e)
+    {
+        if (!e.SourceDataObject.GetDataPresent(System.Windows.DataFormats.UnicodeText, true))
+        {
+            return;
+        }
+
+        if (e.SourceDataObject.GetData(System.Windows.DataFormats.UnicodeText) is not string pastedText)
+        {
+            return;
+        }
+
+        if (ContainsWhitespace(pastedText))
+        {
+            e.CancelCommand();
+        }
     }
 
     private async void DeleteSelectedNode_Click(object sender, RoutedEventArgs e)
@@ -168,5 +211,23 @@ public partial class ConfiguratorWindow : Window
         }
 
         return null;
+    }
+
+    private static bool ContainsWhitespace(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

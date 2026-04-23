@@ -3,6 +3,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows.Input;
+using System.Windows;
 using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models;
 using OlympusServiceBusApplication.Models.Contracts;
@@ -64,6 +65,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
             _selectedNode = value;
             OnPropertyChanged();
+            OnSelectedContractPreviewStateChanged();
         }
     }
 
@@ -104,6 +106,42 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
     public ContractCreatorViewModel ContractCreator { get; }
 
+    public bool HasSelectedContractPreview =>
+        SelectedNode is { IsDirectory: false } &&
+        !string.IsNullOrWhiteSpace(ContractCreator.SelectedContractFilePath) &&
+        string.Equals(
+            ContractCreator.SelectedContractFilePath,
+            SelectedNode.FullPath,
+            StringComparison.OrdinalIgnoreCase);
+
+    public string SelectedContractDescription => string.IsNullOrWhiteSpace(ContractCreator.Description)
+        ? "No description provided for this contract."
+        : ContractCreator.Description;
+
+    public GridLength LeftPanelExplorerHeight => HasSelectedContractPreview
+        ? new GridLength(2, GridUnitType.Star)
+        : new GridLength(1, GridUnitType.Star);
+
+    public GridLength LeftPanelDescriptionSpacingHeight => HasSelectedContractPreview
+        ? new GridLength(8)
+        : new GridLength(0);
+
+    public GridLength LeftPanelDescriptionHeight => HasSelectedContractPreview
+        ? new GridLength(1, GridUnitType.Star)
+        : new GridLength(0);
+
+    public GridLength ScheduleSectionWidth => ContractCreator.SupportsScheduling
+        ? new GridLength(1, GridUnitType.Star)
+        : new GridLength(0);
+
+    public GridLength ScheduleDescriptionSpacingWidth => ContractCreator.SupportsScheduling
+        ? new GridLength(12)
+        : new GridLength(0);
+
+    public GridLength DescriptionSectionWidth => ContractCreator.SupportsScheduling
+        ? new GridLength(3, GridUnitType.Star)
+        : new GridLength(1, GridUnitType.Star);
+
     public ConfiguratorViewModel(
         IContractsWorkspaceService contractsWorkspaceService,
         IContractsExplorerService contractsExplorerService,
@@ -119,6 +157,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         ClearContractSelectionCommand = new RelayCommand(ClearContractSelection);
 
         ContractCreator = new ContractCreatorViewModel();
+        ContractCreator.PropertyChanged += ContractCreator_PropertyChanged;
     }
 
     public async Task LoadAsync()
@@ -162,6 +201,52 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
 
         await ReloadTreeAsync();
+    }
+
+    public async Task SetContractEnabledAsync(FileExplorerNode? node, bool isEnabled)
+    {
+        if (node is null)
+        {
+            StatusMessage = "No contract was selected.";
+            return;
+        }
+
+        if (node.IsDirectory)
+        {
+            StatusMessage = "Folders cannot be enabled or disabled.";
+            return;
+        }
+
+        if (node.IsContractEnabled == isEnabled)
+        {
+            StatusMessage = isEnabled
+                ? $"Contract '{node.Name}' is already enabled."
+                : $"Contract '{node.Name}' is already disabled.";
+            return;
+        }
+
+        await _contractsExplorerService.SetContractEnabledAsync(node.FullPath, isEnabled);
+
+        node.IsContractEnabled = isEnabled;
+        node.CanExecuteManually =
+            isEnabled &&
+            (string.Equals(node.ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(node.ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(node.ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(node.ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
+            string.Equals(node.ScheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
+
+        if (string.Equals(
+                ContractCreator.SelectedContractFilePath,
+                node.FullPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            ContractCreator.IsEnabled = isEnabled;
+        }
+
+        StatusMessage = isEnabled
+            ? $"Contract '{node.Name}' enabled successfully."
+            : $"Contract '{node.Name}' disabled successfully.";
     }
 
     private async Task CreateDirectoryAsync()
@@ -412,6 +497,8 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         return new CreateContractRequest
         {
             Name = name,
+            Description = GetStringProperty(contractElement, "Description"),
+            IsEnabled = GetBoolProperty(contractElement, "Enabled", true),
             ContractType = contractType,
             SourceMethod = "GET",
             ListenerPath = "/incoming",
@@ -669,6 +756,45 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
         return propertyElement.ValueKind == JsonValueKind.True ||
                propertyElement.ValueKind != JsonValueKind.False && fallback;
+    }
+
+    private void ContractCreator_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName is nameof(ContractCreatorViewModel.SelectedContractFilePath) or
+            nameof(ContractCreatorViewModel.Description))
+        {
+            OnSelectedContractPreviewStateChanged();
+        }
+
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName is nameof(ContractCreatorViewModel.Description))
+        {
+            OnPropertyChanged(nameof(SelectedContractDescription));
+        }
+
+        if (string.IsNullOrEmpty(e.PropertyName) ||
+            e.PropertyName is nameof(ContractCreatorViewModel.ContractType) or
+            nameof(ContractCreatorViewModel.SupportsScheduling))
+        {
+            OnSchedulingLayoutChanged();
+        }
+    }
+
+    private void OnSelectedContractPreviewStateChanged()
+    {
+        OnPropertyChanged(nameof(HasSelectedContractPreview));
+        OnPropertyChanged(nameof(SelectedContractDescription));
+        OnPropertyChanged(nameof(LeftPanelExplorerHeight));
+        OnPropertyChanged(nameof(LeftPanelDescriptionSpacingHeight));
+        OnPropertyChanged(nameof(LeftPanelDescriptionHeight));
+    }
+
+    private void OnSchedulingLayoutChanged()
+    {
+        OnPropertyChanged(nameof(ScheduleSectionWidth));
+        OnPropertyChanged(nameof(ScheduleDescriptionSpacingWidth));
+        OnPropertyChanged(nameof(DescriptionSectionWidth));
     }
 
     private sealed record EditableContractRequest(

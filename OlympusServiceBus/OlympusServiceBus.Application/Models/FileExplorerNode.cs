@@ -14,6 +14,7 @@ public class FileExplorerNode : INotifyPropertyChanged
     private string? _contractType;
     private string? _scheduleMode;
     private bool _canExecuteManually;
+    private bool _isContractEnabled = true;
 
     public string Name
     {
@@ -131,6 +132,21 @@ public class FileExplorerNode : INotifyPropertyChanged
             }
 
             _canExecuteManually = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsContractEnabled
+    {
+        get => _isContractEnabled;
+        set
+        {
+            if (_isContractEnabled == value)
+            {
+                return;
+            }
+
+            _isContractEnabled = value;
             OnPropertyChanged();
         }
     }

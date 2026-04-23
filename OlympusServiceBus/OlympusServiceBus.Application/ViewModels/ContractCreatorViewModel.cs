@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows.Input;
 using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models.Contracts;
@@ -9,7 +10,10 @@ namespace OlympusServiceBusApplication.ViewModels;
 
 public class ContractCreatorViewModel : INotifyPropertyChanged
 {
+    private const int MaxDescriptionLength = 1000;
+
     private string _name = string.Empty;
+    private string _description = string.Empty;
     private string _contractType = "ApiToApi";
 
     private string _sourceEndpoint = string.Empty;
@@ -35,6 +39,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     private ScheduleEditorRequest? _schedule;
 
     private bool _isEditMode;
+    private bool _isEnabled = true;
     private string? _selectedContractFilePath;
 
     public string Name
@@ -42,9 +47,25 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         get => _name;
         set
         {
-            if (_name == value) return;
-            _name = value;
+            var sanitizedName = RemoveWhitespace(value);
+
+            if (_name == sanitizedName) return;
+            _name = sanitizedName;
             OnPropertyChanged();
+        }
+    }
+
+    public string Description
+    {
+        get => _description;
+        set
+        {
+            var truncatedDescription = TruncateDescription(value);
+
+            if (_description == truncatedDescription) return;
+            _description = truncatedDescription;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DescriptionCharacterCountText));
         }
     }
 
@@ -286,6 +307,17 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (_isEnabled == value) return;
+            _isEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string? SelectedContractFilePath
     {
         get => _selectedContractFilePath;
@@ -299,6 +331,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
 
     public string FormTitle => IsEditMode ? "Edit Contract" : "Create Contract";
     public string SaveButtonText => IsEditMode ? "Save Contract" : "Create Contract";
+    public string DescriptionCharacterCountText => $"{Description.Length}/{MaxDescriptionLength}";
 
     public ObservableCollection<ContractFieldMappingModel> Mappings { get; } = [];
 
@@ -318,6 +351,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         return new CreateContractRequest
         {
             Name = Name.Trim(),
+            Description = Description.Trim(),
+            IsEnabled = IsEnabled,
             ContractType = ContractType.Trim(),
 
             SourceEndpoint = SourceEndpoint.Trim(),
@@ -351,6 +386,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(request);
 
         Name = request.Name;
+        Description = request.Description;
+        IsEnabled = request.IsEnabled;
         ContractType = string.IsNullOrWhiteSpace(request.ContractType) ? "ApiToApi" : request.ContractType;
 
         SourceEndpoint = request.SourceEndpoint;
@@ -424,6 +461,8 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     private void ResetToDefaults()
     {
         Name = string.Empty;
+        Description = string.Empty;
+        IsEnabled = true;
         ContractType = "ApiToApi";
 
         SourceEndpoint = string.Empty;
@@ -501,6 +540,38 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(UsesFileSink));
         OnPropertyChanged(nameof(SupportsBusinessKey));
         OnPropertyChanged(nameof(SupportsScheduling));
+    }
+
+    private static string RemoveWhitespace(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var character in value)
+        {
+            if (!char.IsWhiteSpace(character))
+            {
+                builder.Append(character);
+            }
+        }
+
+        return builder.ToString();
+    }
+
+    private static string TruncateDescription(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Length <= MaxDescriptionLength
+            ? value
+            : value[..MaxDescriptionLength];
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
