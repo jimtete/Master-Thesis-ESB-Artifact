@@ -117,6 +117,7 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 ContractId = contractId,
                 Name = request.Name.Trim(),
+                Description = BuildDescription(request.Description),
                 Enabled = true,
                 ContractType = "ApiToApi",
                 BusinessKeyFields = businessKeyFields,
@@ -143,6 +144,7 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 ContractId = contractId,
                 Name = request.Name.Trim(),
+                Description = BuildDescription(request.Description),
                 Enabled = true,
                 ContractType = "ApiToFile",
                 BusinessKeyFields = businessKeyFields,
@@ -168,6 +170,7 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 ContractId = contractId,
                 Name = request.Name.Trim(),
+                Description = BuildDescription(request.Description),
                 Enabled = true,
                 ContractType = "PortToApi",
                 BusinessKeyFields = businessKeyFields,
@@ -193,6 +196,7 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 ContractId = contractId,
                 Name = request.Name.Trim(),
+                Description = BuildDescription(request.Description),
                 Enabled = true,
                 ContractType = "PortToFile",
                 BusinessKeyFields = businessKeyFields,
@@ -217,6 +221,7 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 ContractId = contractId,
                 Name = request.Name.Trim(),
+                Description = BuildDescription(request.Description),
                 Enabled = true,
                 ContractType = "FileToApi",
                 BusinessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField),
@@ -243,6 +248,7 @@ public class ContractsExplorerService : IContractsExplorerService
             {
                 ContractId = contractId,
                 Name = request.Name.Trim(),
+                Description = BuildDescription(request.Description),
                 Enabled = true,
                 ContractType = "FileToFile",
                 BusinessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField),
@@ -273,6 +279,13 @@ public class ContractsExplorerService : IContractsExplorerService
         }
 
         return businessKeyFields;
+    }
+
+    private static string BuildDescription(string? description)
+    {
+        return string.IsNullOrWhiteSpace(description)
+            ? string.Empty
+            : description.Trim();
     }
 
     private static object BuildApiSource(CreateContractRequest request)

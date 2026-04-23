@@ -8,9 +8,9 @@
         mc:Ignorable="d"
         Title="Olympus Service Bus Configurator"
         Height="850"
-        Width="1200"
+        Width="1440"
         MinHeight="850"
-        MinWidth="1200"
+        MinWidth="1320"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
@@ -66,9 +66,9 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="12" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="0.9*" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="1.4*" />
             </Grid.ColumnDefinitions>
 
             <GroupBox Grid.Column="0" Header="Contracts Explorer">
@@ -78,7 +78,9 @@
                         <RowDefinition Height="8" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="8" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition Height="{Binding LeftPanelExplorerHeight}" />
+                        <RowDefinition Height="{Binding LeftPanelDescriptionSpacingHeight}" />
+                        <RowDefinition Height="{Binding LeftPanelDescriptionHeight}" />
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0">
@@ -121,6 +123,8 @@
                             Padding="6">
                         <TreeView x:Name="ContractsTreeView"
                                   ItemsSource="{Binding RootNode.Children}"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                   PreviewMouseRightButtonDown="ContractsTreeView_PreviewMouseRightButtonDown">
                             <TreeView.ContextMenu>
                                 <ContextMenu>
@@ -130,8 +134,32 @@
                             </TreeView.ContextMenu>
                         </TreeView>
                     </Border>
+
+                    <GroupBox Grid.Row="6"
+                              Header="Selected Contract Description"
+                              Visibility="{Binding HasSelectedContractPreview, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Grid Margin="8">
+                            <TextBox Text="{Binding SelectedContractDescription, Mode=OneWay}"
+                                     IsReadOnly="True"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     HorizontalScrollBarVisibility="Disabled" />
+                        </Grid>
+                    </GroupBox>
                 </Grid>
             </GroupBox>
+
+            <GridSplitter Grid.Column="1"
+                          Width="8"
+                          HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          Background="#E2E2E2"
+                          ResizeDirection="Columns"
+                          ResizeBehavior="PreviousAndNext"
+                          ShowsPreview="True" />
 
             <GroupBox Grid.Column="2" Header="{Binding ContractCreator.FormTitle}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -164,8 +192,10 @@
                             <TextBlock Grid.Column="0"
                                        VerticalAlignment="Center"
                                        Text="Contract Name:"/>
-                            <TextBox Grid.Column="1"
+                            <TextBox x:Name="ContractNameTextBox"
+                                     Grid.Column="1"
                                      Margin="8,0,16,0"
+                                     PreviewTextInput="ContractNameTextBox_PreviewTextInput"
                                      Text="{Binding ContractCreator.Name, UpdateSourceTrigger=PropertyChanged}"/>
 
                             <TextBlock Grid.Column="2"
@@ -362,31 +392,62 @@
                                      Text="{Binding ContractCreator.BusinessKeyField, UpdateSourceTrigger=PropertyChanged}"/>
                         </Grid>
 
-                        <!-- Scheduling -->
-                        <GroupBox Grid.Row="8"
-                                  Header="Scheduling (Required)"
-                                  Visibility="{Binding ContractCreator.SupportsScheduling, Converter={StaticResource BoolToVisibilityConverter}}">
-                            <Grid Margin="8">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="8"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                        <Grid Grid.Row="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="{Binding ScheduleSectionWidth}" />
+                                <ColumnDefinition Width="{Binding ScheduleDescriptionSpacingWidth}" />
+                                <ColumnDefinition Width="{Binding DescriptionSectionWidth}" />
+                            </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Row="0"
-                                           Text="{Binding ContractCreator.ScheduleSummary}"
-                                           TextWrapping="Wrap" />
+                            <GroupBox Grid.Column="0"
+                                      Header="Scheduling (Required)"
+                                      Visibility="{Binding ContractCreator.SupportsScheduling, Converter={StaticResource BoolToVisibilityConverter}}">
+                                <Grid Margin="8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="8"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                                <StackPanel Grid.Row="2"
-                                            Orientation="Horizontal"
-                                            HorizontalAlignment="Left">
-                                    <Button Width="160"
-                                            Height="30"
-                                            Content="Configure Schedule"
-                                            Click="ConfigureScheduleButton_Click" />
-                                </StackPanel>
-                            </Grid>
-                        </GroupBox>
+                                    <TextBlock Grid.Row="0"
+                                               Text="{Binding ContractCreator.ScheduleSummary}"
+                                               TextWrapping="Wrap" />
+
+                                    <StackPanel Grid.Row="2"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Left">
+                                        <Button Width="160"
+                                                Height="30"
+                                                Content="Configure Schedule"
+                                                Click="ConfigureScheduleButton_Click" />
+                                    </StackPanel>
+                                </Grid>
+                            </GroupBox>
+
+                            <GroupBox Grid.Column="2" Header="Description">
+                                <Grid Margin="8">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBox Grid.Row="0"
+                                             MinHeight="120"
+                                             MaxLength="1000"
+                                             AcceptsReturn="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Disabled"
+                                             Text="{Binding ContractCreator.Description, UpdateSourceTrigger=PropertyChanged}" />
+
+                                    <TextBlock Grid.Row="1"
+                                               Margin="0,8,0,0"
+                                               HorizontalAlignment="Right"
+                                               Foreground="Gray"
+                                               Text="{Binding ContractCreator.DescriptionCharacterCountText}" />
+                                </Grid>
+                            </GroupBox>
+                        </Grid>
 
                         <GroupBox Grid.Row="10" Header="Mappings">
                             <DockPanel Margin="8">

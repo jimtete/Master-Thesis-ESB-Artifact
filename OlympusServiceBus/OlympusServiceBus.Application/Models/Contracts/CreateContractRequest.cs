@@ -3,6 +3,7 @@ namespace OlympusServiceBusApplication.Models.Contracts;
 public class CreateContractRequest
 {
     public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public string ContractType { get; set; } = "ApiToApi";
 
     // API source
