@@ -39,6 +39,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     private ScheduleEditorRequest? _schedule;
 
     private bool _isEditMode;
+    private bool _isEnabled = true;
     private string? _selectedContractFilePath;
 
     public string Name
@@ -306,6 +307,17 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         }
     }
 
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (_isEnabled == value) return;
+            _isEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string? SelectedContractFilePath
     {
         get => _selectedContractFilePath;
@@ -340,6 +352,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
         {
             Name = Name.Trim(),
             Description = Description.Trim(),
+            IsEnabled = IsEnabled,
             ContractType = ContractType.Trim(),
 
             SourceEndpoint = SourceEndpoint.Trim(),
@@ -374,6 +387,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
 
         Name = request.Name;
         Description = request.Description;
+        IsEnabled = request.IsEnabled;
         ContractType = string.IsNullOrWhiteSpace(request.ContractType) ? "ApiToApi" : request.ContractType;
 
         SourceEndpoint = request.SourceEndpoint;
@@ -448,6 +462,7 @@ public class ContractCreatorViewModel : INotifyPropertyChanged
     {
         Name = string.Empty;
         Description = string.Empty;
+        IsEnabled = true;
         ContractType = "ApiToApi";
 
         SourceEndpoint = string.Empty;

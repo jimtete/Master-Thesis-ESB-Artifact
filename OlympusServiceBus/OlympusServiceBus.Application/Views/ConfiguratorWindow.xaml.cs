@@ -95,6 +95,25 @@ public partial class ConfiguratorWindow : Window
         ClearTreeViewSelection(ContractsTreeView);
     }
 
+    private void ContractsTreeView_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var selectedNode = _viewModel.SelectedNode;
+        var isContract = selectedNode is { IsDirectory: false };
+
+        EnableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: false };
+        DisableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: true };
+    }
+
+    private async void EnableSelectedContract_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetContractEnabledAsync(_viewModel.SelectedNode, true);
+    }
+
+    private async void DisableSelectedContract_Click(object sender, RoutedEventArgs e)
+    {
+        await _viewModel.SetContractEnabledAsync(_viewModel.SelectedNode, false);
+    }
+
     private void ContractNameTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
     {
         e.Handled = ContainsWhitespace(e.Text);

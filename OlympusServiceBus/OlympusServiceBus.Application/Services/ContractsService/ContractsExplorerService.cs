@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 using OlympusServiceBusApplication.Models;
 using OlympusServiceBusApplication.Models.Contracts;
 
@@ -81,6 +82,40 @@ public class ContractsExplorerService : IContractsExplorerService
         }
     }
 
+    public async Task SetContractEnabledAsync(string contractFilePath, bool isEnabled)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(contractFilePath);
+
+        if (!File.Exists(contractFilePath))
+        {
+            throw new FileNotFoundException("Contract file was not found.", contractFilePath);
+        }
+
+        var json = await File.ReadAllTextAsync(contractFilePath);
+
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            throw new InvalidOperationException("Contract file is empty.");
+        }
+
+        var rootNode = JsonNode.Parse(json) as JsonObject;
+        if (rootNode is null || rootNode.Count == 0)
+        {
+            throw new InvalidOperationException("Contract file is not a supported JSON object.");
+        }
+
+        var contractProperty = rootNode.FirstOrDefault(static property => property.Value is JsonObject);
+        if (contractProperty.Value is not JsonObject contractObject)
+        {
+            throw new InvalidOperationException("Contract file does not contain a supported contract payload.");
+        }
+
+        contractObject["Enabled"] = isEnabled;
+
+        var updatedJson = rootNode.ToJsonString(JsonOptions);
+        await File.WriteAllTextAsync(contractFilePath, updatedJson);
+    }
+
     private static string NormalizeContractFileName(string contractName)
     {
         var trimmedName = contractName.Trim();
@@ -118,7 +153,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 ContractId = contractId,
                 Name = request.Name.Trim(),
                 Description = BuildDescription(request.Description),
-                Enabled = true,
+                Enabled = request.IsEnabled,
                 ContractType = "ApiToApi",
                 BusinessKeyFields = businessKeyFields,
                 Schedule = BuildScheduleObject(request.Schedule),
@@ -145,7 +180,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 ContractId = contractId,
                 Name = request.Name.Trim(),
                 Description = BuildDescription(request.Description),
-                Enabled = true,
+                Enabled = request.IsEnabled,
                 ContractType = "ApiToFile",
                 BusinessKeyFields = businessKeyFields,
                 Schedule = BuildScheduleObject(request.Schedule),
@@ -171,7 +206,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 ContractId = contractId,
                 Name = request.Name.Trim(),
                 Description = BuildDescription(request.Description),
-                Enabled = true,
+                Enabled = request.IsEnabled,
                 ContractType = "PortToApi",
                 BusinessKeyFields = businessKeyFields,
                 Listener = BuildPortListener(request),
@@ -197,7 +232,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 ContractId = contractId,
                 Name = request.Name.Trim(),
                 Description = BuildDescription(request.Description),
-                Enabled = true,
+                Enabled = request.IsEnabled,
                 ContractType = "PortToFile",
                 BusinessKeyFields = businessKeyFields,
                 Listener = BuildPortListener(request),
@@ -222,7 +257,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 ContractId = contractId,
                 Name = request.Name.Trim(),
                 Description = BuildDescription(request.Description),
-                Enabled = true,
+                Enabled = request.IsEnabled,
                 ContractType = "FileToApi",
                 BusinessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField),
                 Schedule = BuildScheduleObject(request.Schedule),
@@ -249,7 +284,7 @@ public class ContractsExplorerService : IContractsExplorerService
                 ContractId = contractId,
                 Name = request.Name.Trim(),
                 Description = BuildDescription(request.Description),
-                Enabled = true,
+                Enabled = request.IsEnabled,
                 ContractType = "FileToFile",
                 BusinessKeyFields = BuildBusinessKeyFields(request.BusinessKeyField),
                 Schedule = BuildScheduleObject(request.Schedule),
@@ -671,6 +706,7 @@ public class ContractsExplorerService : IContractsExplorerService
             }
 
             node.ScheduleMode = scheduleMode;
+            node.IsContractEnabled = enabled;
             node.CanExecuteManually =
                 enabled &&
                 (string.Equals(contractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
@@ -683,6 +719,7 @@ public class ContractsExplorerService : IContractsExplorerService
         {
             node.ContractType = null;
             node.ScheduleMode = null;
+            node.IsContractEnabled = false;
             node.CanExecuteManually = false;
         }
     }

@@ -35,7 +35,20 @@
                         CommandParameter="{Binding}" />
 
                 <TextBlock VerticalAlignment="Center"
-                           Text="{Binding Name}" />
+                           Text="{Binding Name}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
+
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsContractEnabled}" Value="False">
+                                    <Setter Property="TextDecorations" Value="Strikethrough" />
+                                    <Setter Property="Foreground" Value="Gray" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
             </DockPanel>
         </HierarchicalDataTemplate>
     </Window.Resources>
@@ -125,9 +138,17 @@
                                   ItemsSource="{Binding RootNode.Children}"
                                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ContextMenuOpening="ContractsTreeView_ContextMenuOpening"
                                   PreviewMouseRightButtonDown="ContractsTreeView_PreviewMouseRightButtonDown">
                             <TreeView.ContextMenu>
                                 <ContextMenu>
+                                    <MenuItem x:Name="EnableContractMenuItem"
+                                              Header="Enable"
+                                              Click="EnableSelectedContract_Click" />
+                                    <MenuItem x:Name="DisableContractMenuItem"
+                                              Header="Disable"
+                                              Click="DisableSelectedContract_Click" />
+                                    <Separator />
                                     <MenuItem Header="Delete"
                                               Click="DeleteSelectedNode_Click" />
                                 </ContextMenu>

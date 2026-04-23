@@ -203,6 +203,52 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         await ReloadTreeAsync();
     }
 
+    public async Task SetContractEnabledAsync(FileExplorerNode? node, bool isEnabled)
+    {
+        if (node is null)
+        {
+            StatusMessage = "No contract was selected.";
+            return;
+        }
+
+        if (node.IsDirectory)
+        {
+            StatusMessage = "Folders cannot be enabled or disabled.";
+            return;
+        }
+
+        if (node.IsContractEnabled == isEnabled)
+        {
+            StatusMessage = isEnabled
+                ? $"Contract '{node.Name}' is already enabled."
+                : $"Contract '{node.Name}' is already disabled.";
+            return;
+        }
+
+        await _contractsExplorerService.SetContractEnabledAsync(node.FullPath, isEnabled);
+
+        node.IsContractEnabled = isEnabled;
+        node.CanExecuteManually =
+            isEnabled &&
+            (string.Equals(node.ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(node.ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(node.ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(node.ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
+            string.Equals(node.ScheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
+
+        if (string.Equals(
+                ContractCreator.SelectedContractFilePath,
+                node.FullPath,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            ContractCreator.IsEnabled = isEnabled;
+        }
+
+        StatusMessage = isEnabled
+            ? $"Contract '{node.Name}' enabled successfully."
+            : $"Contract '{node.Name}' disabled successfully.";
+    }
+
     private async Task CreateDirectoryAsync()
     {
         if (string.IsNullOrWhiteSpace(NewDirectoryName))
@@ -452,6 +498,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         {
             Name = name,
             Description = GetStringProperty(contractElement, "Description"),
+            IsEnabled = GetBoolProperty(contractElement, "Enabled", true),
             ContractType = contractType,
             SourceMethod = "GET",
             ListenerPath = "/incoming",
