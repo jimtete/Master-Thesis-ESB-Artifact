@@ -15,14 +15,15 @@ public sealed class FileToFileWorker
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var contracts = registry.GetContract<FileToFileContract>();
+        logger.LogInformation("FileToFileWorker started.");
 
-        logger.LogInformation("FileToFileWorker started. Loaded contracts: {Count}", contracts.Count);
-
-        var lastRun = contracts.ToDictionary(c => c.ContractId, _ => DateTimeOffset.MinValue);
+        var lastRun = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var contracts = registry.GetContract<FileToFileContract>();
+            SyncLastRun(lastRun, contracts);
+
             foreach (var contract in contracts)
             {
                 if (!contract.Enabled)
@@ -42,6 +43,30 @@ public sealed class FileToFileWorker
             }
 
             await Task.Delay(Tick, stoppingToken);
+        }
+    }
+
+    private static void SyncLastRun(
+        IDictionary<string, DateTimeOffset> lastRun,
+        IReadOnlyList<FileToFileContract> contracts)
+    {
+        var activeContractIds = contracts
+            .Select(static contract => contract.ContractId)
+            .Where(static contractId => !string.IsNullOrWhiteSpace(contractId))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var contractId in activeContractIds)
+        {
+            lastRun.TryAdd(contractId, DateTimeOffset.MinValue);
+        }
+
+        var staleContractIds = lastRun.Keys
+            .Where(contractId => !activeContractIds.Contains(contractId))
+            .ToList();
+
+        foreach (var staleContractId in staleContractIds)
+        {
+            lastRun.Remove(staleContractId);
         }
     }
 }

@@ -16,12 +16,12 @@ public sealed class ApiToFileWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var contracts = registry.GetContract<ApiToFileContract>();
-
-        logger.LogInformation("ApiToFileWorker started. Loaded contracts: {Count}", contracts.Count);
+        logger.LogInformation("ApiToFileWorker started.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var contracts = registry.GetContract<ApiToFileContract>();
+
             foreach (var contract in contracts)
             {
                 if (!contract.Enabled)

@@ -12,6 +12,7 @@ using OlympusServiceBus.WebHost.Contracts;
 using OlympusServiceBus.WebHost.Endpoints;
 using OlympusServiceBus.WebHost.Models;
 using OlympusServiceBus.WebHost.OpenApi;
+using OlympusServiceBus.WebHost.Services;
 using OlympusServiceBus.WebHost.Validation;
 using OlympusServiceBus.WebHost.WebOpenApiSchema;
 
@@ -41,6 +42,7 @@ builder.Services.AddScoped<IContractMessageStateService, ContractMessageStateSer
 // DI for extracted services
 builder.Services.AddSingleton<IPortToApiContractLoader, PortToApiContractLoader>();
 builder.Services.AddSingleton<IPortToFileContractLoader, PortToFileContractLoader>();
+builder.Services.AddSingleton<WebHostRestartService>();
 
 builder.Services.AddSingleton<PortToApiSchemaBuilder>();
 builder.Services.AddSingleton<PortToApiInboundValidator>();
