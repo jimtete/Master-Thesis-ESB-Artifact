@@ -1,9 +1,18 @@
+using Microsoft.Extensions.Options;
+
 namespace OlympusServiceBus.Engine.Execution;
 
-public sealed class PortToApiReloadClient(IHttpClientFactory httpClientFactory, ILogger<PortToApiReloadClient> logger)
+public sealed class PortToApiReloadClient(
+    IHttpClientFactory httpClientFactory,
+    IOptions<WebHostOptions> webHostOptions,
+    ILogger<PortToApiReloadClient> logger)
 {
-    public async Task ReloadAsync(string webHostBaseUrl, CancellationToken cancellationToken = default)
+    public async Task ReloadAsync(CancellationToken cancellationToken = default)
     {
+        var webHostBaseUrl = string.IsNullOrWhiteSpace(webHostOptions.Value.BaseUrl)
+            ? "http://localhost:5099"
+            : webHostOptions.Value.BaseUrl;
+
         var url = $"{webHostBaseUrl.TrimEnd('/')}/admin/reload";
 
         try

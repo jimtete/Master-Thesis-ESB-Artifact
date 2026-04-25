@@ -16,12 +16,12 @@ public class ApiToApiWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var contracts = registry.GetContract<ApiToApiContract>();
-
-        logger.LogInformation("ApiToApiWorker started. Loaded contracts: {Count}", contracts.Count);
+        logger.LogInformation("ApiToApiWorker started.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var contracts = registry.GetContract<ApiToApiContract>();
+
             foreach (var contract in contracts)
             {
                 if (!contract.Enabled)

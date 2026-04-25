@@ -1,4 +1,5 @@
 using OlympusServiceBus.Utils.Contracts;
+using OlympusServiceBus.WebHost.Services;
 
 namespace OlympusServiceBus.WebHost.Endpoints;
 
@@ -35,6 +36,20 @@ public static class AdminEndpoints
                             }))
                 ))
             .WithName("AdminContracts");
+
+        app.MapPost("/admin/reload", (WebHostRestartService restartService) =>
+            {
+                if (!restartService.TryScheduleRestart(out var error))
+                {
+                    return Results.Problem(
+                        detail: error,
+                        title: "WebHost restart could not be scheduled.",
+                        statusCode: StatusCodes.Status500InternalServerError);
+                }
+
+                return Results.Accepted("/admin/reload", new { restarting = true });
+            })
+            .WithName("AdminReload");
 
         return app;
     }

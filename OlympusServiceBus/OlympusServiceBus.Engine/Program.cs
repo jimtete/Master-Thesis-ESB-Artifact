@@ -27,6 +27,8 @@ var contractsDirectoryPath = GetContractsDirectoryPath(appDataDirectoryPath);
 builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
 builder.Services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
+builder.Services.Configure<WebHostOptions>(builder.Configuration.GetSection("WebHost"));
+builder.Services.AddSingleton<PortToApiReloadClient>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();
@@ -69,6 +71,7 @@ builder.Services.AddHostedService<ApiToApiWorker>();
 builder.Services.AddHostedService<ApiToFileWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
 builder.Services.AddHostedService<FileToFileWorker>();
+builder.Services.AddHostedService<ContractRegistryRefreshService>();
 builder.Services.AddHostedService<WebHostReloadOnStartup>();
 
 builder.Services.AddSingleton<IExpressionEvaluator, ExpressionEvaluator>();
