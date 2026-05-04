@@ -129,7 +129,7 @@ public class ScheduleEditorViewModel : INotifyPropertyChanged
 
             if (IsRecurring)
             {
-                return !string.IsNullOrWhiteSpace(CronExpression);
+                return ValidateCronExpression().isValid;
             }
 
             return false;
@@ -161,9 +161,10 @@ public class ScheduleEditorViewModel : INotifyPropertyChanged
 
             if (IsRecurring)
             {
-                return !string.IsNullOrWhiteSpace(CronExpression)
+                var cronValidation = ValidateCronExpression();
+                return cronValidation.isValid
                     ? "CRON schedule ready."
-                    : "Please enter a CRON expression.";
+                    : cronValidation.message;
             }
 
             return "Invalid schedule configuration.";
@@ -229,5 +230,24 @@ public class ScheduleEditorViewModel : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private (bool isValid, string message) ValidateCronExpression()
+    {
+        if (string.IsNullOrWhiteSpace(CronExpression))
+        {
+            return (false, "Please enter a CRON expression.");
+        }
+
+        var fieldCount = CronExpression
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Length;
+
+        return fieldCount switch
+        {
+            5 => (true, "CRON schedule ready."),
+            6 => (true, "CRON schedule ready."),
+            _ => (false, "CRON must contain 5 fields, or 6 fields when including seconds.")
+        };
     }
 }

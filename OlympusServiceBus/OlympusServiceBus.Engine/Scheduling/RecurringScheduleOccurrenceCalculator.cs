@@ -13,8 +13,8 @@ public class RecurringScheduleOccurrenceCalculator
         {
             throw new InvalidOperationException("Recurring schedule requires a non-empty CronExpression.");
         }
-        
-        var expression = CronExpression.Parse(cronExpression);
+
+        var expression = CronExpressionResolver.Parse(cronExpression);
         var timeZone = ResolveTimeZone(timeZoneId);
 
         return expression.GetNextOccurrence(fromUtc, timeZone);
@@ -22,11 +22,6 @@ public class RecurringScheduleOccurrenceCalculator
 
     private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
     {
-        if (string.IsNullOrWhiteSpace(timeZoneId))
-        {
-            return TimeZoneInfo.Utc;
-        }
-        
-        return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        return TimeZoneResolver.Resolve(timeZoneId);
     }
 }

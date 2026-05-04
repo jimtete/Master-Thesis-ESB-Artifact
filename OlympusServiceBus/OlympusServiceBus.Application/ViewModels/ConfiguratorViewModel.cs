@@ -217,6 +217,12 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(node.ContractType))
+        {
+            StatusMessage = $"File '{node.Name}' is not a supported contract.";
+            return;
+        }
+
         if (node.IsContractEnabled == isEnabled)
         {
             StatusMessage = isEnabled
@@ -225,28 +231,35 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
-        await _contractsExplorerService.SetContractEnabledAsync(node.FullPath, isEnabled);
-
-        node.IsContractEnabled = isEnabled;
-        node.CanExecuteManually =
-            isEnabled &&
-            (string.Equals(node.ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(node.ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(node.ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(node.ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
-            string.Equals(node.ScheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
-
-        if (string.Equals(
-                ContractCreator.SelectedContractFilePath,
-                node.FullPath,
-                StringComparison.OrdinalIgnoreCase))
+        try
         {
-            ContractCreator.IsEnabled = isEnabled;
-        }
+            await _contractsExplorerService.SetContractEnabledAsync(node.FullPath, isEnabled);
 
-        StatusMessage = isEnabled
-            ? $"Contract '{node.Name}' enabled successfully."
-            : $"Contract '{node.Name}' disabled successfully.";
+            node.IsContractEnabled = isEnabled;
+            node.CanExecuteManually =
+                isEnabled &&
+                (string.Equals(node.ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(node.ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(node.ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(node.ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(node.ScheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
+
+            if (string.Equals(
+                    ContractCreator.SelectedContractFilePath,
+                    node.FullPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ContractCreator.IsEnabled = isEnabled;
+            }
+
+            StatusMessage = isEnabled
+                ? $"Contract '{node.Name}' enabled successfully."
+                : $"Contract '{node.Name}' disabled successfully.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to {(isEnabled ? "enable" : "disable")} contract '{node.Name}': {ex.Message}";
+        }
     }
 
     private async Task CreateDirectoryAsync()

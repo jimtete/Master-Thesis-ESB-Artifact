@@ -99,9 +99,10 @@ public partial class ConfiguratorWindow : Window
     {
         var selectedNode = _viewModel.SelectedNode;
         var isContract = selectedNode is { IsDirectory: false };
+        var canToggleContract = isContract && !string.IsNullOrWhiteSpace(selectedNode?.ContractType);
 
-        EnableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: false };
-        DisableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: true };
+        EnableContractMenuItem.IsEnabled = canToggleContract && selectedNode is { IsContractEnabled: false };
+        DisableContractMenuItem.IsEnabled = canToggleContract && selectedNode is { IsContractEnabled: true };
     }
 
     private async void EnableSelectedContract_Click(object sender, RoutedEventArgs e)

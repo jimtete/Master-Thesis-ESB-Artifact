@@ -41,10 +41,14 @@
                             <Setter Property="Foreground" Value="{DynamicResource {x:Static SystemColors.ControlTextBrushKey}}" />
 
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsContractEnabled}" Value="False">
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsDirectory}" Value="False" />
+                                        <Condition Binding="{Binding IsContractEnabled}" Value="False" />
+                                    </MultiDataTrigger.Conditions>
                                     <Setter Property="TextDecorations" Value="Strikethrough" />
                                     <Setter Property="Foreground" Value="Gray" />
-                                </DataTrigger>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
                     </TextBlock.Style>

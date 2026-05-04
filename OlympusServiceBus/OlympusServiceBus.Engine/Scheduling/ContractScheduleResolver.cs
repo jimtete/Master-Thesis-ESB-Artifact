@@ -102,8 +102,6 @@ public static class ContractScheduleResolver
             return null;
         }
 
-        _ = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
-
-        return timeZoneId;
+        return TimeZoneResolver.Resolve(timeZoneId).Id;
     }
 }

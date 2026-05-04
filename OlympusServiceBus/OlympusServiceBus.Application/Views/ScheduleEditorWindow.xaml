@@ -190,7 +190,7 @@
                                    Text="CRON Expression:" />
                         <TextBox Grid.Column="1"
                                  Text="{Binding CronExpression, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Example: 0 */15 * * * *" />
+                                 ToolTip="Examples: */15 * * * * or 0 */15 * * * *" />
                     </Grid>
 
                     <Grid Grid.Row="2">

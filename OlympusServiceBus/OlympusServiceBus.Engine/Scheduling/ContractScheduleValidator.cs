@@ -130,6 +130,17 @@ public static class ContractScheduleValidator
             throw new InvalidOperationException(
                 $"Contract '{contract.ContractId}' uses Recurring schedule and must not define Every.");
         }
+
+        try
+        {
+            _ = CronExpressionResolver.Parse(contract.Schedule.CronExpression);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Cronos.CronFormatException)
+        {
+            throw new InvalidOperationException(
+                $"Contract '{contract.ContractId}' uses an invalid CronExpression: {ex.Message}",
+                ex);
+        }
     }
 
     private static void ValidateNoScheduledTriggers(ContractBase contract, string mode)
