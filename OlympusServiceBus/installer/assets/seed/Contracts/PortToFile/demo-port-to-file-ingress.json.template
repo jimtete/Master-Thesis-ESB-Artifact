@@ -1,0 +1,80 @@
+{
+  "PortToFile": {
+    "ContractId": "demo-port-to-file-ingress",
+    "Name": "Demo-Port-To-File-Ingress",
+    "Enabled": true,
+    "BusinessKeyFields": [
+      "emailAddress",
+      "meetingTime"
+    ],
+    "Listener": {
+      "Path": "/demo/guest-registration-file",
+      "Method": "POST"
+    },
+    "Request": {
+      "Fields": [
+        {
+          "FieldName": "fullName",
+          "Type": "String",
+          "Required": true
+        },
+        {
+          "FieldName": "email",
+          "Type": "String",
+          "Required": true
+        },
+        {
+          "FieldName": "meetingDateTime",
+          "Type": "String",
+          "Format": "date-time",
+          "Required": true
+        },
+        {
+          "FieldName": "duration",
+          "Type": "Number",
+          "Required": true
+        },
+        {
+          "FieldName": "registeredBy",
+          "Type": "String",
+          "Required": true
+        }
+      ]
+    },
+    "Sink": {
+      "Directory": "__PORT_TO_FILE_OUTPUT_DIRECTORY__",
+      "FileExtension": "csv"
+    },
+    "Mappings": [
+      {
+        "TransformationType": "Split",
+        "SourceFieldName": "fullName",
+        "SinkFields": [
+          "firstName",
+          "lastName"
+        ],
+        "Separator": " "
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "email",
+        "SinkFieldName": "emailAddress"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "meetingDateTime",
+        "SinkFieldName": "meetingTime"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "duration",
+        "SinkFieldName": "meetingDurationInHours"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "registeredBy",
+        "SinkFieldName": "registeredBy"
+      }
+    ]
+  }
+}

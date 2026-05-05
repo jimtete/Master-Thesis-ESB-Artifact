@@ -1,0 +1,126 @@
+{
+  "FileToFile": {
+    "ContractId": "demo-file-to-file-local-output",
+    "Name": "Demo-File-To-File-Local-Output",
+    "Enabled": false,
+    "BusinessKeyFields": [
+      "emailAddress",
+      "meetingTime"
+    ],
+    "Schedule": {
+      "Mode": "Manual"
+    },
+    "Source": {
+      "Directory": "__FILE_TO_FILE_INPUT_DIRECTORY__",
+      "SearchPattern": "*.csv",
+      "IncludeSubdirectories": false,
+      "ProcessedDirectory": "__FILE_TO_FILE_PROCESSED_DIRECTORY__",
+      "ErrorDirectory": "__FILE_TO_FILE_ERROR_DIRECTORY__"
+    },
+    "Rules": {
+      "LoopCSV": {
+        "Delimiter": ",",
+        "HasHeader": true,
+        "RequiredColumns": [
+          "FullName",
+          "Email",
+          "MeetingDateTime",
+          "Duration",
+          "RegisteredBy"
+        ],
+        "Bindings": [
+          {
+            "Column": "FullName",
+            "Field": "fullName",
+            "Required": true
+          },
+          {
+            "Column": "Email",
+            "Field": "email",
+            "Required": true
+          },
+          {
+            "Column": "MeetingDateTime",
+            "Field": "meetingDateTime",
+            "Required": true
+          },
+          {
+            "Column": "Duration",
+            "Field": "duration",
+            "Required": true
+          },
+          {
+            "Column": "RegisteredBy",
+            "Field": "registeredBy",
+            "Required": true
+          }
+        ]
+      }
+    },
+    "Request": {
+      "Fields": [
+        {
+          "FieldName": "fullName",
+          "Type": "String",
+          "Required": true
+        },
+        {
+          "FieldName": "email",
+          "Type": "String",
+          "Required": true
+        },
+        {
+          "FieldName": "meetingDateTime",
+          "Type": "String",
+          "Format": "date-time",
+          "Required": true
+        },
+        {
+          "FieldName": "duration",
+          "Type": "Number",
+          "Required": true
+        },
+        {
+          "FieldName": "registeredBy",
+          "Type": "String",
+          "Required": true
+        }
+      ]
+    },
+    "Sink": {
+      "Directory": "__FILE_TO_FILE_OUTPUT_DIRECTORY__",
+      "FileExtension": "csv"
+    },
+    "Mappings": [
+      {
+        "TransformationType": "Split",
+        "SourceFieldName": "fullName",
+        "SinkFields": [
+          "firstName",
+          "lastName"
+        ],
+        "Separator": " "
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "email",
+        "SinkFieldName": "emailAddress"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "meetingDateTime",
+        "SinkFieldName": "meetingTime"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "duration",
+        "SinkFieldName": "meetingDurationInHours"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "registeredBy",
+        "SinkFieldName": "registeredBy"
+      }
+    ]
+  }
+}

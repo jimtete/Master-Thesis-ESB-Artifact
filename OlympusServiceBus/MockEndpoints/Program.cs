@@ -25,11 +25,9 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "MockEndpoints v1");
         c.RoutePrefix = "swagger"; // default, explicit for clarity
     });
-}
 
-// If you only run HTTP locally and get the HTTPS warning, either remove this
-// or configure https in launchSettings.json.
-app.UseHttpsRedirection();
+    app.UseHttpsRedirection();
+}
 
 var FirstNames = new[]
 {

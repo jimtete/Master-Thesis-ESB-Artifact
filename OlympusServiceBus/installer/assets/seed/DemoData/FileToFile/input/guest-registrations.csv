@@ -1,0 +1,3 @@
+FullName,Email,MeetingDateTime,Duration,RegisteredBy
+Marie Curie,marie@example.test,2026-05-06T09:15:00Z,2,installer-demo
+Katherine Johnson,katherine@example.test,2026-05-06T11:45:00Z,1,installer-demo
