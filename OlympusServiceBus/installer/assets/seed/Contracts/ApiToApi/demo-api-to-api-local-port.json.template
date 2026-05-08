@@ -1,0 +1,53 @@
+{
+  "ApiToApi": {
+    "ContractId": "demo-api-to-api-local-port",
+    "Name": "Demo-Api-To-Api-Local-Port",
+    "Enabled": false,
+    "BusinessKeyFields": [
+      "email",
+      "meetingDateTime"
+    ],
+    "Schedule": {
+      "Mode": "Interval",
+      "Every": {
+        "Value": 45,
+        "Unit": "Seconds"
+      }
+    },
+    "Source": {
+      "Endpoint": "__MOCK_ENDPOINTS_BASE_URL__/get-random-guest-registration-full-name",
+      "Method": "GET"
+    },
+    "Sink": {
+      "Endpoint": "__WEB_HOST_BASE_URL__/demo/guest-registration-file",
+      "Method": "POST"
+    },
+    "Mappings": [
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "fullName",
+        "SinkFieldName": "fullName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "email",
+        "SinkFieldName": "email"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "meetingDateTime",
+        "SinkFieldName": "meetingDateTime"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "duration",
+        "SinkFieldName": "duration"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "registeredBy",
+        "SinkFieldName": "registeredBy"
+      }
+    ]
+  }
+}

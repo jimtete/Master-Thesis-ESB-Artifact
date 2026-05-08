@@ -63,13 +63,11 @@ builder.Services.AddScoped<IPortToFileEngine, PortToFileEngine>();
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "OlympusServiceBus.WebHost v1"));
-}
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "OlympusServiceBus.WebHost v1"));
+app.MapGet("/", () => Results.Redirect("/swagger"))
+    .ExcludeFromDescription();
 
-var contractsOptions = app.Services.GetRequiredService<IOptions<ContractsOptions>>().Value;
 var contractsRoot = defaultContractsRoot;
 app.Logger.LogInformation("Contracts RootPath: {RootPath}", contractsRoot);
 
@@ -106,21 +104,3 @@ static string GetContractsDirectoryPath(string appDataDirectoryPath)
     return Path.Combine(appDataDirectoryPath, "Contracts");
 }
 
-static string ResolveContractsDirectory(string? configuredRootPath, string defaultContractsRoot)
-{
-    var candidates = new[]
-    {
-        configuredRootPath,
-        defaultContractsRoot
-    };
-
-    foreach (var candidate in candidates)
-    {
-        if (!string.IsNullOrWhiteSpace(candidate) && Directory.Exists(candidate))
-        {
-            return candidate;
-        }
-    }
-
-    return defaultContractsRoot;
-}

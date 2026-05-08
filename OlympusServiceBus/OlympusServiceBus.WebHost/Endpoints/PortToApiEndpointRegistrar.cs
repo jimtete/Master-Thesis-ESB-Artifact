@@ -87,7 +87,8 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                     return ToHttpResult(result);
                 })
                 .WithName(endpointName)
-                .WithMetadata(new PortToApiOpenApiMetadata(c.ContractId, requestSchema));
+                .WithTags(c.SwaggerGroupName ?? "PortToApi")
+                .WithMetadata(new PortToApiOpenApiMetadata(c.ContractId, c.Name, requestSchema));
         }
     }
 

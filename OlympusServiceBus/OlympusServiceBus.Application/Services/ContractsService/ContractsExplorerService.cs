@@ -641,6 +641,8 @@ public class ContractsExplorerService : IContractsExplorerService
             return;
         }
 
+        ResetContractMetadata(node);
+
         try
         {
             var json = File.ReadAllText(node.FullPath);
@@ -717,11 +719,16 @@ public class ContractsExplorerService : IContractsExplorerService
         }
         catch
         {
-            node.ContractType = null;
-            node.ScheduleMode = null;
-            node.IsContractEnabled = false;
-            node.CanExecuteManually = false;
+            ResetContractMetadata(node);
         }
+    }
+
+    private static void ResetContractMetadata(FileExplorerNode node)
+    {
+        node.ContractType = null;
+        node.ScheduleMode = null;
+        node.IsContractEnabled = false;
+        node.CanExecuteManually = false;
     }
 
     private static object? BuildApiFieldMapping(ContractFieldMappingModel mapping)

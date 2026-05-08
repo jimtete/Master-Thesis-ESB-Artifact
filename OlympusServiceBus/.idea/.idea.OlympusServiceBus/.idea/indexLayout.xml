@@ -3,6 +3,8 @@
   <component name="UserContentModel">
     <attachedFolders>
       <Path>../../../../AppData/Roaming/OlympusServiceBus/Contracts</Path>
+      <Path>Examples</Path>
+      <Path>installer</Path>
       <Path>scripts</Path>
     </attachedFolders>
     <explicitIncludes />

@@ -1,0 +1,1 @@
+{"contractId":"File-To-File-Example","file":"data.csv","TotalRows":2,"SucceededRows":0,"FailedRows":2,"Failures":[{"RowNumber":2,"Errors":["Transformation failed","StatusCode=400"]},{"RowNumber":3,"Errors":["Transformation failed","StatusCode=400"]}]}

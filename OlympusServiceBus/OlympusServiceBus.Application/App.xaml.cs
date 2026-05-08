@@ -17,6 +17,7 @@ using OlympusServiceBus.RuntimeState.Repositories;
 using OlympusServiceBus.RuntimeState.Services;
 using OlympusServiceBus.Utils;
 using OlympusServiceBusApplication.Services.AppSettingsService;
+using OlympusServiceBusApplication.Services.BackgroundRuntimeService;
 using OlympusServiceBusApplication.Services.ContractsService;
 using OlympusServiceBusApplication.Services.FolderPickerService;
 using OlympusServiceBusApplication.ViewModels;
@@ -67,6 +68,7 @@ public partial class App : Application
             options.UseSqlite($"Data Source={runtimeStateDbPath}"));
 
         services.AddSingleton<IAppSettingsService, AppSettingsService>();
+        services.AddSingleton<IBackgroundRuntimeService, BackgroundRuntimeService>();
         services.AddSingleton<MainWindow>();
         
         services.AddTransient<MainWindowViewModel>();

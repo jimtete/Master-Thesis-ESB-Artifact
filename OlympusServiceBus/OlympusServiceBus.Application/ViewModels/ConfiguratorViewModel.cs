@@ -7,6 +7,7 @@ using System.Windows;
 using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models;
 using OlympusServiceBusApplication.Models.Contracts;
+using OlympusServiceBusApplication.Services.BackgroundRuntimeService;
 using OlympusServiceBusApplication.Services.ContractsService;
 
 namespace OlympusServiceBusApplication.ViewModels;
@@ -16,6 +17,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     private readonly IContractsWorkspaceService _contractsWorkspaceService;
     private readonly IContractsExplorerService _contractsExplorerService;
     private readonly IManualContractExecutionService _manualContractExecutionService;
+    private readonly IBackgroundRuntimeService _backgroundRuntimeService;
 
     private string _contractsDirectoryPath = string.Empty;
     private FileExplorerNode? _rootNode;
@@ -103,8 +105,10 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     public ICommand CreateContractCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand ClearContractSelectionCommand { get; }
+    public ICommand OpenSwaggerUiCommand { get; }
 
     public ContractCreatorViewModel ContractCreator { get; }
+    public string SwaggerUiUrl => _backgroundRuntimeService.SwaggerUiUrl;
 
     public bool HasSelectedContractPreview =>
         SelectedNode is { IsDirectory: false } &&
@@ -145,16 +149,19 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     public ConfiguratorViewModel(
         IContractsWorkspaceService contractsWorkspaceService,
         IContractsExplorerService contractsExplorerService,
-        IManualContractExecutionService manualContractExecutionService)
+        IManualContractExecutionService manualContractExecutionService,
+        IBackgroundRuntimeService backgroundRuntimeService)
     {
         _contractsWorkspaceService = contractsWorkspaceService;
         _contractsExplorerService = contractsExplorerService;
         _manualContractExecutionService = manualContractExecutionService;
+        _backgroundRuntimeService = backgroundRuntimeService;
 
         CreateDirectoryCommand = new AsyncRelayCommand(CreateDirectoryAsync);
         CreateContractCommand = new AsyncRelayCommand(CreateContractAsync);
         RefreshCommand = new AsyncRelayCommand(ReloadTreeAsync);
         ClearContractSelectionCommand = new RelayCommand(ClearContractSelection);
+        OpenSwaggerUiCommand = new AsyncRelayCommand(OpenSwaggerUiAsync);
 
         ContractCreator = new ContractCreatorViewModel();
         ContractCreator.PropertyChanged += ContractCreator_PropertyChanged;
@@ -164,7 +171,11 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     {
         ContractsDirectoryPath = await _contractsWorkspaceService.EnsureContractsDirectoryAsync();
         await ReloadTreeAsync();
-        StatusMessage = "Contracts workspace loaded.";
+
+        var runtimeResult = await _backgroundRuntimeService.EnsureStartedAsync();
+        StatusMessage = runtimeResult.IsUnsupported
+            ? "Contracts workspace loaded."
+            : runtimeResult.Message;
     }
 
     public async Task ExecuteManualContractAsync(FileExplorerNode? node)
@@ -217,6 +228,12 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(node.ContractType))
+        {
+            StatusMessage = $"File '{node.Name}' is not a supported contract.";
+            return;
+        }
+
         if (node.IsContractEnabled == isEnabled)
         {
             StatusMessage = isEnabled
@@ -225,28 +242,40 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
             return;
         }
 
-        await _contractsExplorerService.SetContractEnabledAsync(node.FullPath, isEnabled);
-
-        node.IsContractEnabled = isEnabled;
-        node.CanExecuteManually =
-            isEnabled &&
-            (string.Equals(node.ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(node.ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(node.ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
-             string.Equals(node.ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
-            string.Equals(node.ScheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
-
-        if (string.Equals(
-                ContractCreator.SelectedContractFilePath,
-                node.FullPath,
-                StringComparison.OrdinalIgnoreCase))
+        try
         {
-            ContractCreator.IsEnabled = isEnabled;
-        }
+            await _contractsExplorerService.SetContractEnabledAsync(node.FullPath, isEnabled);
 
-        StatusMessage = isEnabled
-            ? $"Contract '{node.Name}' enabled successfully."
-            : $"Contract '{node.Name}' disabled successfully.";
+            node.IsContractEnabled = isEnabled;
+            node.CanExecuteManually =
+                isEnabled &&
+                (string.Equals(node.ContractType, "ApiToApi", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(node.ContractType, "ApiToFile", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(node.ContractType, "FileToFile", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(node.ContractType, "FileToApi", StringComparison.OrdinalIgnoreCase)) &&
+                string.Equals(node.ScheduleMode, "Manual", StringComparison.OrdinalIgnoreCase);
+
+            if (string.Equals(
+                    ContractCreator.SelectedContractFilePath,
+                    node.FullPath,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                ContractCreator.IsEnabled = isEnabled;
+            }
+
+            StatusMessage = isEnabled
+                ? $"Contract '{node.Name}' enabled successfully."
+                : $"Contract '{node.Name}' disabled successfully.";
+
+            if (IsPortContractType(node.ContractType))
+            {
+                StatusMessage += " The WebHost will refresh automatically for Port contracts.";
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Failed to {(isEnabled ? "enable" : "disable")} contract '{node.Name}': {ex.Message}";
+        }
     }
 
     private async Task CreateDirectoryAsync()
@@ -303,6 +332,12 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         StatusMessage = previousFilePath is not null
             ? $"Contract '{createdOrUpdatedContractName}' saved successfully."
             : $"Contract '{createdOrUpdatedContractName}' created successfully.";
+
+        var previousContractType = TryGetContractType(previousFilePath);
+        if (IsPortContractType(previousContractType) || IsPortContractType(request.ContractType))
+        {
+            StatusMessage += " The WebHost will refresh automatically for Port contracts.";
+        }
     }
 
     public async Task HandleSelectedNodeChangedAsync()
@@ -353,6 +388,85 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     private async Task ReloadTreeAsync()
     {
         RootNode = await _contractsExplorerService.LoadTreeAsync(ContractsDirectoryPath);
+    }
+
+    private async Task OpenSwaggerUiAsync()
+    {
+        var result = await _backgroundRuntimeService.OpenSwaggerUiAsync();
+        StatusMessage = result.Message;
+    }
+
+    public Task HandleDeletedContractAsync(string contractName, string? deletedContractType)
+    {
+        StatusMessage = $"Contract '{contractName}' deleted successfully.";
+        if (IsPortContractType(deletedContractType))
+        {
+            StatusMessage += " The WebHost will refresh automatically for Port contracts.";
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static bool IsPortContractType(string? contractType)
+    {
+        return string.Equals(contractType, "PortToApi", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(contractType, "PortToFile", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? TryGetContractType(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(filePath);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+
+            if (root.TryGetProperty("PortToApi", out _))
+            {
+                return "PortToApi";
+            }
+
+            if (root.TryGetProperty("PortToFile", out _))
+            {
+                return "PortToFile";
+            }
+
+            if (root.TryGetProperty("ApiToApi", out _))
+            {
+                return "ApiToApi";
+            }
+
+            if (root.TryGetProperty("ApiToFile", out _))
+            {
+                return "ApiToFile";
+            }
+
+            if (root.TryGetProperty("FileToApi", out _))
+            {
+                return "FileToApi";
+            }
+
+            if (root.TryGetProperty("FileToFile", out _))
+            {
+                return "FileToFile";
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string ResolveTargetDirectoryPath()

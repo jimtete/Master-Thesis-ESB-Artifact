@@ -99,9 +99,10 @@ public partial class ConfiguratorWindow : Window
     {
         var selectedNode = _viewModel.SelectedNode;
         var isContract = selectedNode is { IsDirectory: false };
+        var canToggleContract = isContract && !string.IsNullOrWhiteSpace(selectedNode?.ContractType);
 
-        EnableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: false };
-        DisableContractMenuItem.IsEnabled = isContract && selectedNode is { IsContractEnabled: true };
+        EnableContractMenuItem.IsEnabled = canToggleContract && selectedNode is { IsContractEnabled: false };
+        DisableContractMenuItem.IsEnabled = canToggleContract && selectedNode is { IsContractEnabled: true };
     }
 
     private async void EnableSelectedContract_Click(object sender, RoutedEventArgs e)
@@ -173,6 +174,8 @@ public partial class ConfiguratorWindow : Window
             File.Delete(selectedNode.FullPath);
         }
 
+        var deletedContractType = selectedNode.ContractType;
+
         if (string.Equals(
                 _viewModel.ContractCreator.SelectedContractFilePath,
                 selectedNode.FullPath,
@@ -183,7 +186,7 @@ public partial class ConfiguratorWindow : Window
         }
 
         await _viewModel.LoadAsync();
-        _viewModel.StatusMessage = $"Contract '{selectedNode.Name}' deleted successfully.";
+        await _viewModel.HandleDeletedContractAsync(selectedNode.Name, deletedContractType);
     }
 
     private static void ClearTreeViewSelection(ItemsControl parent)

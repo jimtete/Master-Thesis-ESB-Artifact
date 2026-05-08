@@ -100,6 +100,16 @@ public sealed class FileToFileExecutor(
                         loopResult.SucceededRows,
                         loopResult.FailedRows);
 
+                    foreach (var failure in loopResult.Failures)
+                    {
+                        logger.LogWarning(
+                            "[{Contract}] File {File} row {RowNumber} failed: {Errors}",
+                            c.ContractId,
+                            fileName,
+                            failure.RowNumber,
+                            string.Join(" | ", failure.Errors));
+                    }
+
                     var reportPath = Path.Combine(errorDir, $"{fileName}.errors.json");
                     var reportJson = JsonSerializer.Serialize(new
                     {

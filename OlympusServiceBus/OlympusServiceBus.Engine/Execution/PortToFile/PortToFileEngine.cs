@@ -52,6 +52,12 @@ public class PortToFileEngine : IPortToFileEngine
 
         if (mappingErrors.Count > 0)
         {
+            _logger.LogWarning(
+                "[{Corr}] Transformation failed for contract {ContractId}. MappingErrors: {MappingErrors}",
+                context.CorrelationId,
+                portToFileContract.ContractId,
+                string.Join(" | ", mappingErrors));
+
             return new EngineResult(
                 Success: false,
                 StatusCode: (int)HttpStatusCode.BadRequest,

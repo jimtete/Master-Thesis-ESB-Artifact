@@ -1,0 +1,122 @@
+{
+  "FileToApi": {
+    "ContractId": "demo-file-to-api-local-port",
+    "Name": "Demo-File-To-Api-Local-Port",
+    "Enabled": false,
+    "BusinessKeyFields": [
+      "email",
+      "meetingDateTime"
+    ],
+    "Schedule": {
+      "Mode": "Manual"
+    },
+    "Source": {
+      "Directory": "__FILE_TO_API_INPUT_DIRECTORY__",
+      "SearchPattern": "*.csv",
+      "IncludeSubdirectories": false,
+      "ProcessedDirectory": "__FILE_TO_API_PROCESSED_DIRECTORY__",
+      "ErrorDirectory": "__FILE_TO_API_ERROR_DIRECTORY__"
+    },
+    "Rules": {
+      "LoopCSV": {
+        "Delimiter": ",",
+        "HasHeader": true,
+        "RequiredColumns": [
+          "FullName",
+          "Email",
+          "MeetingDateTime",
+          "Duration",
+          "RegisteredBy"
+        ],
+        "Bindings": [
+          {
+            "Column": "FullName",
+            "Field": "fullName",
+            "Required": true
+          },
+          {
+            "Column": "Email",
+            "Field": "email",
+            "Required": true
+          },
+          {
+            "Column": "MeetingDateTime",
+            "Field": "meetingDateTime",
+            "Required": true
+          },
+          {
+            "Column": "Duration",
+            "Field": "duration",
+            "Required": true
+          },
+          {
+            "Column": "RegisteredBy",
+            "Field": "registeredBy",
+            "Required": true
+          }
+        ]
+      }
+    },
+    "Request": {
+      "Fields": [
+        {
+          "FieldName": "fullName",
+          "Type": "String",
+          "Required": true
+        },
+        {
+          "FieldName": "email",
+          "Type": "String",
+          "Required": true
+        },
+        {
+          "FieldName": "meetingDateTime",
+          "Type": "String",
+          "Format": "date-time",
+          "Required": true
+        },
+        {
+          "FieldName": "duration",
+          "Type": "Number",
+          "Required": true
+        },
+        {
+          "FieldName": "registeredBy",
+          "Type": "String",
+          "Required": true
+        }
+      ]
+    },
+    "Sink": {
+      "Endpoint": "__WEB_HOST_BASE_URL__/demo/guest-registration-file",
+      "Method": "POST"
+    },
+    "Mappings": [
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "fullName",
+        "SinkFieldName": "fullName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "email",
+        "SinkFieldName": "email"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "meetingDateTime",
+        "SinkFieldName": "meetingDateTime"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "duration",
+        "SinkFieldName": "duration"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "registeredBy",
+        "SinkFieldName": "registeredBy"
+      }
+    ]
+  }
+}

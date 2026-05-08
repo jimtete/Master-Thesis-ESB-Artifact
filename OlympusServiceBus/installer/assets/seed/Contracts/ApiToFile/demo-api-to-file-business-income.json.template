@@ -1,0 +1,74 @@
+{
+  "ApiToFile": {
+    "ContractId": "demo-api-to-file-business-income",
+    "Name": "Demo-Api-To-File-Business-Income",
+    "Enabled": true,
+    "BusinessKeyFields": [
+      "firstName",
+      "lastName",
+      "dayOfMonth"
+    ],
+    "Schedule": {
+      "Mode": "Interval",
+      "Every": {
+        "Value": 30,
+        "Unit": "Seconds"
+      }
+    },
+    "Source": {
+      "Endpoint": "__MOCK_ENDPOINTS_BASE_URL__/get-random-business-income",
+      "Method": "GET"
+    },
+    "Sink": {
+      "Directory": "__API_TO_FILE_OUTPUT_DIRECTORY__",
+      "FileExtension": "csv"
+    },
+    "Mappings": [
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "firstName",
+        "SinkFieldName": "firstName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "lastName",
+        "SinkFieldName": "lastName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "randomDayOfCurrentMonth",
+        "SinkFieldName": "dayOfMonth"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "businessOneName",
+        "SinkFieldName": "businessOneName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "businessOneIncome",
+        "SinkFieldName": "businessOneIncome"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "businessTwoName",
+        "SinkFieldName": "businessTwoName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "businessTwoIncome",
+        "SinkFieldName": "businessTwoIncome"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "businessThreeName",
+        "SinkFieldName": "businessThreeName"
+      },
+      {
+        "TransformationType": "Direct",
+        "SourceFieldName": "businessThreeIncome",
+        "SinkFieldName": "businessThreeIncome"
+      }
+    ]
+  }
+}

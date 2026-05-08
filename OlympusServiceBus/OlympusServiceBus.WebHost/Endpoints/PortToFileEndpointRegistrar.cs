@@ -92,7 +92,8 @@ public class PortToFileEndpointRegistrar : IPortToFileEndpointRegistrar
                     return ToHttpResult(result);
                 })
                 .WithName(endpointName)
-                .WithMetadata(new PortToApiOpenApiMetadata(c.ContractId, requestSchema));
+                .WithTags(c.SwaggerGroupName ?? "PortToFile")
+                .WithMetadata(new PortToApiOpenApiMetadata(c.ContractId, c.Name, requestSchema));
         }
     }
     

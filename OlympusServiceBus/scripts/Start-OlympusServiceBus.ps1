@@ -90,8 +90,9 @@ function Start-DotNetProject {
         [string]$ProjectRelativePath,
 
         [string]$LaunchProfile,
+        [string]$ReadyUrl,
 
-        [string]$ReadyUrl
+        [switch]$HideWindow
     )
 
     $projectPath = Join-Path $repoRoot $ProjectRelativePath
@@ -106,7 +107,18 @@ function Start-DotNetProject {
     }
 
     Write-Host "Starting $Name..."
-    $process = Start-Process -FilePath "dotnet" -ArgumentList $argumentList -WorkingDirectory $repoRoot -PassThru
+    $startInfo = @{
+        FilePath = "dotnet"
+        ArgumentList = $argumentList
+        WorkingDirectory = $repoRoot
+        PassThru = $true
+    }
+
+    if ($HideWindow) {
+        $startInfo.WindowStyle = "Hidden"
+    }
+
+    $process = Start-Process @startInfo
 
     if (-not [string]::IsNullOrWhiteSpace($ReadyUrl)) {
         Write-Host "Waiting for $Name on $ReadyUrl..."
@@ -136,18 +148,21 @@ try {
         -Name "MockEndpoints" `
         -ProjectRelativePath "MockEndpoints\MockEndpoints.csproj" `
         -LaunchProfile "http" `
-        -ReadyUrl $mockEndpointsUrl
+        -ReadyUrl $mockEndpointsUrl `
+        -HideWindow
 
     $startedProcesses += Start-DotNetProject `
         -Name "OlympusServiceBus.WebHost" `
         -ProjectRelativePath "OlympusServiceBus.WebHost\OlympusServiceBus.WebHost.csproj" `
         -LaunchProfile "http" `
-        -ReadyUrl $webHostUrl
+        -ReadyUrl $webHostUrl `
+        -HideWindow
 
     $startedProcesses += Start-DotNetProject `
         -Name "OlympusServiceBus.Engine" `
         -ProjectRelativePath "OlympusServiceBus.Engine\OlympusServiceBus.Engine.csproj" `
-        -LaunchProfile "OlympusServiceBus.Engine"
+        -LaunchProfile "OlympusServiceBus.Engine" `
+        -HideWindow
 
     $startedProcesses += Start-DotNetProject `
         -Name "OlympusServiceBus.Application" `

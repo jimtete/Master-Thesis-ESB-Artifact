@@ -72,7 +72,6 @@ builder.Services.AddHostedService<ApiToFileWorker>();
 builder.Services.AddHostedService<FileToApiWorker>();
 builder.Services.AddHostedService<FileToFileWorker>();
 builder.Services.AddHostedService<ContractRegistryRefreshService>();
-builder.Services.AddHostedService<WebHostReloadOnStartup>();
 
 builder.Services.AddSingleton<IExpressionEvaluator, ExpressionEvaluator>();
 builder.Services.AddSingleton<IMappingEngine, MappingEngine>();
