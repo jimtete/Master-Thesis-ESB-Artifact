@@ -174,6 +174,8 @@ public partial class ConfiguratorWindow : Window
             File.Delete(selectedNode.FullPath);
         }
 
+        var deletedContractType = selectedNode.ContractType;
+
         if (string.Equals(
                 _viewModel.ContractCreator.SelectedContractFilePath,
                 selectedNode.FullPath,
@@ -184,7 +186,7 @@ public partial class ConfiguratorWindow : Window
         }
 
         await _viewModel.LoadAsync();
-        _viewModel.StatusMessage = $"Contract '{selectedNode.Name}' deleted successfully.";
+        await _viewModel.HandleDeletedContractAsync(selectedNode.Name, deletedContractType);
     }
 
     private static void ClearTreeViewSelection(ItemsControl parent)

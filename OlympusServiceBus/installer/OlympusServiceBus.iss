@@ -1,7 +1,7 @@
 #define MyAppName "OlympusServiceBus"
 
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "0.2.2"
 #endif
 
 #ifndef StageDir
@@ -41,10 +41,13 @@ Source: "{#StageDir}\Seed\*"; DestDir: "{app}\Seed"; Flags: ignoreversion recurs
 
 [Icons]
 Name: "{autoprograms}\OlympusServiceBus\OlympusServiceBus Configurator"; Filename: "{app}\Application\OlympusServiceBus.Application.exe"
-Name: "{autoprograms}\OlympusServiceBus\Start Demo Runtime"; Filename: "{app}\Scripts\Start-DemoRuntime.cmd"
-Name: "{autoprograms}\OlympusServiceBus\Stop Demo Runtime"; Filename: "{app}\Scripts\Stop-DemoRuntime.cmd"
+Name: "{autoprograms}\OlympusServiceBus\Start Background Runtime"; Filename: "{app}\Scripts\Start-DemoRuntime.cmd"
+Name: "{autoprograms}\OlympusServiceBus\Stop Background Runtime"; Filename: "{app}\Scripts\Stop-DemoRuntime.cmd"
 Name: "{autoprograms}\OlympusServiceBus\Reset Demo Data"; Filename: "{app}\Scripts\Reset-DemoData.cmd"
 
 [Run]
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Scripts\Initialize-DemoWorkspace.ps1"""; Flags: runhidden waituntilterminated
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Scripts\Start-DemoRuntime.ps1"""; Flags: runhidden waituntilterminated
 Filename: "{app}\Application\OlympusServiceBus.Application.exe"; Description: "Launch OlympusServiceBus Configurator"; Flags: nowait postinstall skipifsilent unchecked
+
+[UninstallRun]
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\Scripts\Stop-DemoRuntime.ps1"" -Quiet"; RunOnceId: "StopOlympusBackgroundRuntime"; Flags: runhidden waituntilterminated

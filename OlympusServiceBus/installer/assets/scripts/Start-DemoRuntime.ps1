@@ -59,6 +59,83 @@ function Wait-ForTcpPort {
     throw "Timed out waiting for port $Port."
 }
 
+function Test-ProcessEntryIsRunning {
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject]$Entry
+    )
+
+    if ($null -eq $Entry -or $null -eq $Entry.ProcessId) {
+        return $false
+    }
+
+    $process = Get-Process -Id $Entry.ProcessId -ErrorAction SilentlyContinue
+    if ($null -eq $process) {
+        return $false
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Entry.ExecutablePath)) {
+        return $true
+    }
+
+    return $process.Path -eq $Entry.ExecutablePath
+}
+
+function Test-BackgroundRuntimeAlreadyRunning {
+    if (-not (Test-Path $pidFilePath)) {
+        return $false
+    }
+
+    try {
+        $processEntries = @(Get-Content $pidFilePath -Raw | ConvertFrom-Json)
+    }
+    catch {
+        return $false
+    }
+
+    if ($processEntries.Count -lt 3) {
+        return $false
+    }
+
+    $requiredNames = @(
+        "MockEndpoints",
+        "OlympusServiceBus.WebHost",
+        "OlympusServiceBus.Engine"
+    )
+
+    foreach ($requiredName in $requiredNames) {
+        $entry = $processEntries | Where-Object { $_.Name -eq $requiredName } | Select-Object -First 1
+        if ($null -eq $entry -or -not (Test-ProcessEntryIsRunning -Entry $entry)) {
+            return $false
+        }
+    }
+
+    $mockClient = $null
+    $webHostClient = $null
+
+    try {
+        $mockClient = [System.Net.Sockets.TcpClient]::new()
+        $webHostClient = [System.Net.Sockets.TcpClient]::new()
+
+        $mockConnected = $mockClient.ConnectAsync("127.0.0.1", 5146).Wait(1000) -and $mockClient.Connected
+        $webHostConnected = $webHostClient.ConnectAsync("127.0.0.1", 5099).Wait(1000) -and $webHostClient.Connected
+
+        return $mockConnected -and $webHostConnected
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $mockClient) {
+            $mockClient.Dispose()
+        }
+
+        if ($null -ne $webHostClient) {
+            $webHostClient.Dispose()
+        }
+    }
+}
+
 function Start-HostedProcess {
     param(
         [Parameter(Mandatory = $true)]
@@ -123,6 +200,11 @@ function Start-HostedProcess {
 
 New-Item -ItemType Directory -Path $logsRoot -Force | Out-Null
 
+if (Test-BackgroundRuntimeAlreadyRunning) {
+    Write-Host "OlympusServiceBus background runtime is already running."
+    return
+}
+
 & $stopScriptPath -Quiet
 Start-Sleep -Seconds 1
 & $initializeScriptPath
@@ -151,7 +233,7 @@ try {
 
     $startedProcesses | ConvertTo-Json | Set-Content -LiteralPath $pidFilePath -Encoding UTF8
 
-    Write-Host "OlympusServiceBus demo runtime started."
+    Write-Host "OlympusServiceBus background runtime started."
     $startedProcesses | ForEach-Object {
         Write-Host (" - {0} (PID {1})" -f $_.Name, $_.ProcessId)
     }

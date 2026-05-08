@@ -35,7 +35,8 @@ public static class AdminEndpoints
                                 sink = c.Sink?.Directory
                             }))
                 ))
-            .WithName("AdminContracts");
+            .WithName("AdminContracts")
+            .ExcludeFromDescription();
 
         app.MapPost("/admin/reload", (WebHostRestartService restartService) =>
             {
@@ -49,7 +50,8 @@ public static class AdminEndpoints
 
                 return Results.Accepted("/admin/reload", new { restarting = true });
             })
-            .WithName("AdminReload");
+            .WithName("AdminReload")
+            .ExcludeFromDescription();
 
         return app;
     }

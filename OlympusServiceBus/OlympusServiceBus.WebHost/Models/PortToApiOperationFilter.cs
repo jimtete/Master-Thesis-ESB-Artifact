@@ -15,13 +15,7 @@ public sealed class PortToApiOperationFilter : IOperationFilter
         if (meta is null)
             return;
 
-        operation.Summary = $"PortToApi: {meta.ContractId}";
-
-        // IMPORTANT: OpenAPI.NET v2 uses tag references and they are immutable-ish
-        operation.Tags = new HashSet<OpenApiTagReference>
-        {
-            new OpenApiTagReference("PortToApi")
-        };
+        operation.Summary = meta.ContractName;
 
         operation.RequestBody = new OpenApiRequestBody
         {

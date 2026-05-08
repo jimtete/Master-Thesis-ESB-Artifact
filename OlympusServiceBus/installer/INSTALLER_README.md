@@ -29,13 +29,13 @@ installer\artifacts\stage\Release\win-x64
 From `OlympusServiceBus/` run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Build-OlympusServiceBusInstaller.ps1 -Configuration Release -Runtime win-x64 -Version 0.1.0
+powershell -ExecutionPolicy Bypass -File .\installer\Build-OlympusServiceBusInstaller.ps1 -Configuration Release -Runtime win-x64 -Version 0.2.2
 ```
 
 If `ISCC.exe` is not on `PATH`, provide it explicitly:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\installer\Build-OlympusServiceBusInstaller.ps1 -Configuration Release -Runtime win-x64 -Version 0.1.0 -InnoSetupCompilerPath "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+powershell -ExecutionPolicy Bypass -File .\installer\Build-OlympusServiceBusInstaller.ps1 -Configuration Release -Runtime win-x64 -Version 0.2.2 -InnoSetupCompilerPath "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 ```
 
 The generated installer is written to:
@@ -52,7 +52,7 @@ The installer packages:
 - `OlympusServiceBus.Engine`
 - `OlympusServiceBus.WebHost`
 - `MockEndpoints`
-- helper scripts for start/stop/reset
+- helper scripts for background runtime start/stop/reset
 - repo example content from `Examples`
 - demo seed contracts and demo data for local testing
 
@@ -72,11 +72,12 @@ User-writable runtime data is created under:
 ## Local Test Flow After Installation
 
 1. Run the installer.
-2. Launch `Start Demo Runtime` from the Start Menu.
+2. The installer starts the runtime in the background automatically.
 3. Launch `OlympusServiceBus Configurator` from the Start Menu.
 4. Confirm the contracts workspace points to `%APPDATA%\OlympusServiceBus\Contracts`.
-5. Check that recurring demo output appears under `%APPDATA%\OlympusServiceBus\DemoData`.
-6. Use `Reset Demo Data` if you want to restore the seeded demo workspace.
+5. Use the `Open Web API Swagger UI` button in the configurator to open the browser-based API page.
+6. Check that recurring demo output appears under `%APPDATA%\OlympusServiceBus\DemoData`.
+7. Use `Start Background Runtime`, `Stop Background Runtime`, or `Reset Demo Data` from the Start Menu if needed.
 
 The seeded `FileToApi` and `FileToFile` contracts are installed in a disabled state so their sample input files are not consumed automatically on first startup.
 

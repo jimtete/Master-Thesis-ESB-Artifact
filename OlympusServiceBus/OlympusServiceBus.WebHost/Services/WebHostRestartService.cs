@@ -57,19 +57,10 @@ public sealed class WebHostRestartService(
     {
         if (OperatingSystem.IsWindows())
         {
-            var startCommand = new StringBuilder("ping 127.0.0.1 -n 3 > nul && start \"\" ");
-            startCommand.Append(QuoteForWindowsCommand(restartCommand.FilePath));
-
-            if (restartCommand.Arguments.Length > 0)
-            {
-                startCommand.Append(' ');
-                startCommand.Append(string.Join(" ", restartCommand.Arguments.Select(QuoteForWindowsCommand)));
-            }
-
             Process.Start(new ProcessStartInfo
             {
-                FileName = "cmd.exe",
-                Arguments = $"/c {startCommand}",
+                FileName = "powershell.exe",
+                Arguments = BuildWindowsRestartArguments(restartCommand),
                 CreateNoWindow = true,
                 UseShellExecute = false
             });
@@ -97,9 +88,31 @@ public sealed class WebHostRestartService(
         });
     }
 
+    private static string BuildWindowsRestartArguments(RestartCommand restartCommand)
+    {
+        var filePath = QuoteForPowerShellSingleQuoted(restartCommand.FilePath);
+        var arguments = restartCommand.Arguments.Length == 0
+            ? "@()"
+            : $"@({string.Join(", ", restartCommand.Arguments.Select(QuoteForPowerShellSingleQuoted))})";
+
+        return string.Join(" ",
+        [
+            "-NoProfile",
+            "-WindowStyle", "Hidden",
+            "-Command",
+            QuoteForWindowsCommand(
+                $"Start-Sleep -Seconds 2; Start-Process -WindowStyle Hidden -FilePath {filePath} -ArgumentList {arguments}")
+        ]);
+    }
+
     private static string QuoteForWindowsCommand(string value)
     {
         return $"\"{value.Replace("\"", "\"\"")}\"";
+    }
+
+    private static string QuoteForPowerShellSingleQuoted(string value)
+    {
+        return $"'{value.Replace("'", "''")}'";
     }
 
     private static string QuoteForShell(string value)

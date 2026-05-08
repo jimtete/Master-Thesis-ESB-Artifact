@@ -57,7 +57,26 @@ function Copy-SeedTree {
     }
 
     Ensure-Directory -Path $Destination
-    Copy-Item -Path (Join-Path $Source '*') -Destination $Destination -Recurse -Force
+
+    foreach ($item in Get-ChildItem -Path $Source -Recurse -Force) {
+        $relativePath = $item.FullName.Substring($Source.Length).TrimStart('\')
+        if ([string]::IsNullOrWhiteSpace($relativePath)) {
+            continue
+        }
+
+        $targetPath = Join-Path $Destination $relativePath
+
+        if ($item.PSIsContainer) {
+            Ensure-Directory -Path $targetPath
+            continue
+        }
+
+        Ensure-Directory -Path (Split-Path -Parent $targetPath)
+
+        if ($Force -or -not (Test-Path $targetPath)) {
+            Copy-Item -LiteralPath $item.FullName -Destination $targetPath -Force
+        }
+    }
 }
 
 function Convert-ToContractPath {

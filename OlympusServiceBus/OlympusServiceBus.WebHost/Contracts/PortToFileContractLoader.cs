@@ -62,6 +62,7 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
                         wrappedContract.ContractId = string.IsNullOrWhiteSpace(wrappedContract.ContractId)
                             ? Path.GetFileNameWithoutExtension(file)
                             : wrappedContract.ContractId;
+                        wrappedContract.SwaggerGroupName = ResolveSwaggerGroupName(rootPath, file, "PortToFile");
 
                         list.Add(wrappedContract);
                     }
@@ -80,6 +81,7 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
                         direct.ContractId = string.IsNullOrWhiteSpace(direct.ContractId)
                             ? Path.GetFileNameWithoutExtension(file)
                             : direct.ContractId;
+                        direct.SwaggerGroupName = ResolveSwaggerGroupName(rootPath, file, "PortToFile");
 
                         list.Add(direct);
                     }
@@ -119,6 +121,28 @@ public sealed class PortToFileContractLoader : IPortToFileContractLoader
 
         value = default;
         return false;
+    }
+
+    private static string ResolveSwaggerGroupName(string? rootPath, string filePath, string fallbackGroupName)
+    {
+        if (string.IsNullOrWhiteSpace(rootPath))
+        {
+            return fallbackGroupName;
+        }
+
+        var contractDirectory = Path.GetDirectoryName(filePath);
+        if (string.IsNullOrWhiteSpace(contractDirectory))
+        {
+            return fallbackGroupName;
+        }
+
+        var relativeDirectory = Path.GetRelativePath(rootPath, contractDirectory);
+        if (string.IsNullOrWhiteSpace(relativeDirectory) || string.Equals(relativeDirectory, ".", StringComparison.Ordinal))
+        {
+            return fallbackGroupName;
+        }
+
+        return Path.GetFileName(relativeDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     }
 
     private sealed class PortToFileDocument

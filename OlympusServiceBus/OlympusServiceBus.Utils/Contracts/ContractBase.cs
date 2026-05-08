@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using OlympusServiceBus.Utils.Contracts.Scheduling;
 
 namespace OlympusServiceBus.Utils.Contracts;
@@ -15,4 +16,7 @@ public abstract class ContractBase
     public string[] BusinessKeyFields { get; set; } = [];
 
     public ContractScheduleConfiguration? Schedule { get; set; }
+
+    [JsonIgnore]
+    public string? SwaggerGroupName { get; set; }
 }
