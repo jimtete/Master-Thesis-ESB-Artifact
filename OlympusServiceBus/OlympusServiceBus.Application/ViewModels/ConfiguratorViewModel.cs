@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows.Input;
 using System.Windows;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBusApplication.Commands;
 using OlympusServiceBusApplication.Models;
 using OlympusServiceBusApplication.Models.Contracts;
@@ -18,12 +19,14 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     private readonly IContractsExplorerService _contractsExplorerService;
     private readonly IManualContractExecutionService _manualContractExecutionService;
     private readonly IBackgroundRuntimeService _backgroundRuntimeService;
+    private readonly IEvaluationRecordingService _evaluationRecordingService;
 
     private string _contractsDirectoryPath = string.Empty;
     private FileExplorerNode? _rootNode;
     private FileExplorerNode? _selectedNode;
     private string _newDirectoryName = string.Empty;
     private string _statusMessage = "Ready.";
+    private EvaluationRecordingSession? _activeRecordingSession;
 
     public string ContractsDirectoryPath
     {
@@ -109,6 +112,15 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
     public ContractCreatorViewModel ContractCreator { get; }
     public string SwaggerUiUrl => _backgroundRuntimeService.SwaggerUiUrl;
+    public string EvaluationRecordingStoragePath => _evaluationRecordingService.StorageRootPath;
+    public bool IsRecordingActive => _activeRecordingSession is not null;
+    public string RecordingButtonText => IsRecordingActive ? "Stop Recording" : "Start Recording";
+    public string RecordingStatusText => _activeRecordingSession is null
+        ? "Recording inactive"
+        : $"Recording active. Session: {_activeRecordingSession.SessionId}";
+    public string RecordingSessionStartedAtText => _activeRecordingSession is null
+        ? "No active recording session."
+        : $"Started: {_activeRecordingSession.StartedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}";
 
     public bool HasSelectedContractPreview =>
         SelectedNode is { IsDirectory: false } &&
@@ -150,12 +162,14 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         IContractsWorkspaceService contractsWorkspaceService,
         IContractsExplorerService contractsExplorerService,
         IManualContractExecutionService manualContractExecutionService,
-        IBackgroundRuntimeService backgroundRuntimeService)
+        IBackgroundRuntimeService backgroundRuntimeService,
+        IEvaluationRecordingService evaluationRecordingService)
     {
         _contractsWorkspaceService = contractsWorkspaceService;
         _contractsExplorerService = contractsExplorerService;
         _manualContractExecutionService = manualContractExecutionService;
         _backgroundRuntimeService = backgroundRuntimeService;
+        _evaluationRecordingService = evaluationRecordingService;
 
         CreateDirectoryCommand = new AsyncRelayCommand(CreateDirectoryAsync);
         CreateContractCommand = new AsyncRelayCommand(CreateContractAsync);
@@ -171,6 +185,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
     {
         ContractsDirectoryPath = await _contractsWorkspaceService.EnsureContractsDirectoryAsync();
         await ReloadTreeAsync();
+        await RefreshRecordingStateAsync();
 
         var runtimeResult = await _backgroundRuntimeService.EnsureStartedAsync();
         StatusMessage = runtimeResult.IsUnsupported
@@ -390,6 +405,12 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         RootNode = await _contractsExplorerService.LoadTreeAsync(ContractsDirectoryPath);
     }
 
+    private async Task RefreshRecordingStateAsync()
+    {
+        _activeRecordingSession = await _evaluationRecordingService.GetActiveSessionAsync();
+        OnRecordingStateChanged();
+    }
+
     private async Task OpenSwaggerUiAsync()
     {
         var result = await _backgroundRuntimeService.OpenSwaggerUiAsync();
@@ -405,6 +426,69 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         }
 
         return Task.CompletedTask;
+    }
+
+    public async Task StartRecordingAsync()
+    {
+        if (_activeRecordingSession is not null)
+        {
+            StatusMessage = $"Recording session '{_activeRecordingSession.SessionId}' is already active.";
+            return;
+        }
+
+        var session = await _evaluationRecordingService.StartSessionAsync();
+        _activeRecordingSession = session;
+        OnRecordingStateChanged();
+
+        StatusMessage =
+            $"Recording started. Session '{session.SessionId}' is active. Temporary data is stored in '{EvaluationRecordingStoragePath}'.";
+    }
+
+    public async Task StopRecordingAsync(string? exportFilePath)
+    {
+        if (_activeRecordingSession is null)
+        {
+            StatusMessage = "No active recording session to stop.";
+            return;
+        }
+
+        var sessionId = _activeRecordingSession.SessionId;
+        var stoppedSession = await _evaluationRecordingService.StopSessionAsync(sessionId);
+        _activeRecordingSession = null;
+        OnRecordingStateChanged();
+
+        if (stoppedSession is null)
+        {
+            StatusMessage = "The active recording session could not be stopped cleanly.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(exportFilePath))
+        {
+            StatusMessage =
+                $"Recording stopped. Session '{sessionId}' remains stored in '{EvaluationRecordingStoragePath}'.";
+            return;
+        }
+
+        try
+        {
+            await _evaluationRecordingService.ExportSessionToCsvAsync(sessionId, exportFilePath);
+            StatusMessage =
+                $"Recording stopped and exported to '{exportFilePath}'. Temporary session data remains in '{EvaluationRecordingStoragePath}'.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage =
+                $"Recording stopped, but export failed: {ex.Message} Session data remains in '{EvaluationRecordingStoragePath}'.";
+        }
+    }
+
+    public string GetDefaultRecordingExportFileName()
+    {
+        var timestamp = (_activeRecordingSession?.StartedAtUtc ?? DateTimeOffset.UtcNow)
+            .ToLocalTime();
+
+        return $"evaluation-recording-{timestamp:yyyyMMdd-HHmmss}.csv";
     }
 
     private static bool IsPortContractType(string? contractType)
@@ -909,6 +993,15 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ScheduleSectionWidth));
         OnPropertyChanged(nameof(ScheduleDescriptionSpacingWidth));
         OnPropertyChanged(nameof(DescriptionSectionWidth));
+    }
+
+    private void OnRecordingStateChanged()
+    {
+        OnPropertyChanged(nameof(IsRecordingActive));
+        OnPropertyChanged(nameof(RecordingButtonText));
+        OnPropertyChanged(nameof(RecordingStatusText));
+        OnPropertyChanged(nameof(RecordingSessionStartedAtText));
+        OnPropertyChanged(nameof(EvaluationRecordingStoragePath));
     }
 
     private sealed record EditableContractRequest(

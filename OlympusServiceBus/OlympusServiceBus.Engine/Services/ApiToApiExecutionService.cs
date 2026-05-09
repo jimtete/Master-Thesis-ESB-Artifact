@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.FeedbackContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.RuntimeState.Models;
@@ -16,6 +18,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
     private readonly ApiToApiPayloadHashProvider _payloadHashProvider;
     private readonly IFeedbackContractRegistry _feedbackContractRegistry;
     private readonly FeedbackContractDispatcher _feedbackContractDispatcher;
+    private readonly IEvaluationRecordingService _evaluationRecordingService;
 
     public ApiToApiExecutionService(
         ApiToApiExecutor executor,
@@ -24,7 +27,8 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         ApiToApiBusinessKeyProvider businessKeyProvider,
         ApiToApiPayloadHashProvider payloadHashProvider,
         IFeedbackContractRegistry feedbackContractRegistry,
-        FeedbackContractDispatcher feedbackContractDispatcher)
+        FeedbackContractDispatcher feedbackContractDispatcher,
+        IEvaluationRecordingService evaluationRecordingService)
     {
         _executor = executor;
         _executionStateService = executionStateService;
@@ -33,10 +37,18 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         _payloadHashProvider = payloadHashProvider;
         _feedbackContractRegistry = feedbackContractRegistry;
         _feedbackContractDispatcher = feedbackContractDispatcher;
+        _evaluationRecordingService = evaluationRecordingService;
     }
 
-    public async Task ExecuteAsync(ApiToApiContract contract, CancellationToken cancellationToken)
+    public async Task ExecuteAsync(ApiToApiContract contract, string triggerType, CancellationToken cancellationToken)
     {
+        var activeSession = await _evaluationRecordingService.GetActiveSessionAsync(cancellationToken);
+        var startedAtUtc = DateTimeOffset.UtcNow;
+        var stopwatch = Stopwatch.StartNew();
+        var status = "Success";
+        string? errorMessage = null;
+        var processedCount = 0;
+
         await _executionStateService.SaveAsync(new ContractExecutionStateEntity
         {
             ContractId = contract.ContractId,
@@ -53,6 +65,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
             if (execution is null || execution.SinkPayload is null)
             {
                 await FlushPendingAsync(contract, cancellationToken);
+                status = "NoPayload";
 
                 await _executionStateService.SaveAsync(new ContractExecutionStateEntity
                 {
@@ -115,7 +128,13 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
             }
 
-            await FlushPendingAsync(contract, cancellationToken);
+            var flushSummary = await FlushPendingWithSummaryAsync(contract, cancellationToken);
+            processedCount = flushSummary.PublishedCount + flushSummary.FailedCount;
+            if (flushSummary.FailedCount > 0)
+            {
+                status = "Failed";
+                errorMessage = $"{flushSummary.FailedCount} pending message(s) failed during publish.";
+            }
 
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
@@ -126,8 +145,11 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 UpdatedAt = DateTimeOffset.UtcNow
             }, cancellationToken);
         }
-        catch
+        catch (Exception ex)
         {
+            status = "Failed";
+            errorMessage = ex.Message;
+
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
                 ContractId = contract.ContractId,
@@ -139,13 +161,48 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
             throw;
         }
+        finally
+        {
+            stopwatch.Stop();
+
+            if (activeSession is not null)
+            {
+                var metadata = EvaluationContractMetadataResolver.Resolve(contract);
+                await _evaluationRecordingService.RecordJobAsync(new EvaluationJobRecord
+                {
+                    RecordingSessionId = activeSession.SessionId,
+                    ContractId = contract.ContractId,
+                    ContractName = contract.Name,
+                    ContractType = metadata.ContractType,
+                    ScheduleMode = metadata.ScheduleMode,
+                    TriggerType = triggerType,
+                    SourceType = metadata.SourceType,
+                    SinkType = metadata.SinkType,
+                    StartTimestampUtc = startedAtUtc,
+                    EndTimestampUtc = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    Status = status,
+                    ErrorMessage = errorMessage,
+                    ProcessedRowsOrMessagesCount = processedCount
+                }, cancellationToken);
+            }
+        }
     }
 
     public async Task FlushPendingAsync(ApiToApiContract contract, CancellationToken cancellationToken)
     {
+        await FlushPendingWithSummaryAsync(contract, cancellationToken);
+    }
+
+    private async Task<FlushPendingSummary> FlushPendingWithSummaryAsync(
+        ApiToApiContract contract,
+        CancellationToken cancellationToken)
+    {
         var pendingMessages = await _messageStateService.GetPendingAsync(
             contract.ContractId,
             cancellationToken);
+
+        var summary = new FlushPendingSummary();
 
         foreach (var message in pendingMessages)
         {
@@ -178,6 +235,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 message.LastPublishError = null;
 
                 await _messageStateService.SaveAsync(message, cancellationToken);
+                summary.PublishedCount += 1;
 
                 await DispatchFeedbackContractsAsync(
                     contract,
@@ -196,6 +254,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 message.LastPublishError = ex.Message;
 
                 await _messageStateService.SaveAsync(message, cancellationToken);
+                summary.FailedCount += 1;
 
                 await DispatchFeedbackContractsAsync(
                     contract,
@@ -209,6 +268,8 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                     cancellationToken);
             }
         }
+
+        return summary;
     }
 
     private async Task DispatchFeedbackContractsAsync(
@@ -264,5 +325,11 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
             contract.ContractId,
             context,
             cancellationToken);
+    }
+
+    private sealed class FlushPendingSummary
+    {
+        public int PublishedCount { get; set; }
+        public int FailedCount { get; set; }
     }
 }

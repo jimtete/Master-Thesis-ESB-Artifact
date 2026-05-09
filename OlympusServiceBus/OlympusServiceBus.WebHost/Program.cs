@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Engine.Execution.PortToFile;
@@ -46,6 +47,7 @@ builder.Services.AddSingleton<WebHostRestartService>();
 
 builder.Services.AddSingleton<PortToApiSchemaBuilder>();
 builder.Services.AddSingleton<PortToApiInboundValidator>();
+builder.Services.AddSingleton<IEvaluationRecordingService, FileEvaluationRecordingService>();
 
 builder.Services.AddSingleton<IPortToApiEndpointRegistrar, PortToApiEndpointRegistrar>();
 builder.Services.AddSingleton<IPortToFileEndpointRegistrar, PortToFileEndpointRegistrar>();

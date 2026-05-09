@@ -66,20 +66,75 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
-                Padding="10"
-                BorderBrush="#D0D0D0"
-                BorderThickness="1"
-                CornerRadius="4">
-            <StackPanel>
-                <TextBlock Text="Contracts Directory"
-                           FontSize="15"
-                           FontWeight="SemiBold" />
-                <TextBlock Margin="0,6,0,0"
-                           Text="{Binding ContractsDirectoryPath}"
-                           TextWrapping="Wrap" />
-            </StackPanel>
-        </Border>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="12" />
+                <ColumnDefinition Width="1.3*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Padding="10"
+                    BorderBrush="#D0D0D0"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                <StackPanel>
+                    <TextBlock Text="Contracts Directory"
+                               FontSize="15"
+                               FontWeight="SemiBold" />
+                    <TextBlock Margin="0,6,0,0"
+                               Text="{Binding ContractsDirectoryPath}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Padding="10"
+                    BorderBrush="#D0D0D0"
+                    BorderThickness="1"
+                    CornerRadius="4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Evaluation Recording"
+                                   FontSize="15"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="{Binding RecordingStatusText}"
+                                   FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#555555" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRecordingActive}" Value="True">
+                                            <Setter Property="Foreground" Value="#C62828" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="{Binding RecordingSessionStartedAtText}" />
+                        <TextBlock Margin="0,4,0,0"
+                                   Text="{Binding EvaluationRecordingStoragePath}"
+                                   TextWrapping="Wrap"
+                                   Foreground="Gray" />
+                    </StackPanel>
+
+                    <Button Grid.Column="2"
+                            MinWidth="150"
+                            Height="32"
+                            VerticalAlignment="Center"
+                            Content="{Binding RecordingButtonText}"
+                            Click="RecordingButton_Click" />
+                </Grid>
+            </Border>
+        </Grid>
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>

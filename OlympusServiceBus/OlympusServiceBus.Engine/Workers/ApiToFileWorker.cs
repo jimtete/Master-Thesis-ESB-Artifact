@@ -1,3 +1,4 @@
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.Engine.Scheduling;
 using OlympusServiceBus.Engine.Services;
@@ -60,7 +61,7 @@ public sealed class ApiToFileWorker(
                         contract.ContractId,
                         resolvedSchedule.Mode);
 
-                    await executionService.ExecuteAsync(contract, stoppingToken);
+                    await executionService.ExecuteAsync(contract, EvaluationTriggerTypes.Scheduled, stoppingToken);
                 }
                 catch (NotSupportedException ex)
                 {

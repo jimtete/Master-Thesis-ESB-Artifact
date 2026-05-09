@@ -76,6 +76,29 @@ public partial class ConfiguratorWindow : Window
         _viewModel.StatusMessage = "Scheduling configuration updated.";
     }
 
+    private async void RecordingButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_viewModel.IsRecordingActive)
+        {
+            await _viewModel.StartRecordingAsync();
+            return;
+        }
+
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export Evaluation Recording",
+            Filter = "CSV Files (*.csv)|*.csv",
+            DefaultExt = ".csv",
+            AddExtension = true,
+            FileName = _viewModel.GetDefaultRecordingExportFileName()
+        };
+
+        var dialogResult = saveDialog.ShowDialog(this);
+        var exportPath = dialogResult == true ? saveDialog.FileName : null;
+
+        await _viewModel.StopRecordingAsync(exportPath);
+    }
+
     private async void ExecuteContractButton_Click(object sender, RoutedEventArgs e)
     {
         e.Handled = true;

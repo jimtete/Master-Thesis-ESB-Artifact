@@ -1,3 +1,4 @@
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.Utils.Contracts;
@@ -37,7 +38,7 @@ public sealed class FileToApiWorker
                     using var scope = scopeFactory.CreateScope();
                     var executor = scope.ServiceProvider.GetRequiredService<FileToApiExecutor>();
 
-                    await executor.ExecuteOnce(contract, stoppingToken);
+                    await executor.ExecuteOnce(contract, EvaluationTriggerTypes.FilePolling, stoppingToken);
                     lastRun[contract.ContractId] = DateTimeOffset.UtcNow;
                 }
             }

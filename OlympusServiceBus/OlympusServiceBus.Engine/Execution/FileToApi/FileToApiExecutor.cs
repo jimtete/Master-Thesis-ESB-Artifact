@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.Utils.Contracts;
 
@@ -7,120 +9,185 @@ namespace OlympusServiceBus.Engine.Execution.FileToApi;
 public sealed class FileToApiExecutor(
     ILogger<FileToApiExecutor> logger,
     CsvLoopProcessor csvLoop,
-    IPortToApiEngine portToApiEngine)
+    IPortToApiEngine portToApiEngine,
+    IEvaluationRecordingService evaluationRecordingService)
 {
-    public async Task ExecuteOnce(FileToApiContract c, CancellationToken ct)
+    public async Task ExecuteOnce(FileToApiContract c, string triggerType, CancellationToken ct)
     {
-        var inputDir = c.Source?.Directory;
-        var pattern = string.IsNullOrWhiteSpace(c.Source?.SearchPattern) ? "*.csv" : c.Source!.SearchPattern;
+        var activeSession = await evaluationRecordingService.GetActiveSessionAsync(ct);
+        var startedAtUtc = DateTimeOffset.UtcNow;
+        var stopwatch = Stopwatch.StartNew();
+        var status = "NoFiles";
+        var errorMessages = new List<string>();
+        var processedCount = 0;
+        var hadFailures = false;
 
-        if (string.IsNullOrWhiteSpace(inputDir) || !Directory.Exists(inputDir))
+        try
         {
-            logger.LogWarning("[{Contract}] Input directory missing/not found: {Dir}", c.ContractId, inputDir);
-            return;
-        }
+            var inputDir = c.Source?.Directory;
+            var pattern = string.IsNullOrWhiteSpace(c.Source?.SearchPattern) ? "*.csv" : c.Source!.SearchPattern;
 
-        var processedDir = c.Source?.ProcessedDirectory;
-        if (string.IsNullOrWhiteSpace(processedDir))
-            processedDir = Path.Combine(inputDir, "Processed");
-
-        var errorDir = c.Source?.ErrorDirectory;
-        if (string.IsNullOrWhiteSpace(errorDir))
-            errorDir = Path.Combine(inputDir, "Error");
-
-        Directory.CreateDirectory(processedDir);
-        Directory.CreateDirectory(errorDir);
-
-        var rule = c.Rules?.LoopCSV;
-        if (rule is null)
-        {
-            logger.LogWarning("[{Contract}] Missing Rules.LoopCSV configuration.", c.ContractId);
-            return;
-        }
-
-        // Adapter contract so we can reuse PortToApiEngine + (optionally) CSV typing from Request.Fields
-        var portToApi = ToPortToApiContract(c);
-
-        var searchOption = (c.Source?.IncludeSubdirectories ?? false)
-            ? SearchOption.AllDirectories
-            : SearchOption.TopDirectoryOnly;
-
-        var files = Directory.EnumerateFiles(inputDir, pattern, searchOption)
-            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        if (files.Count == 0)
-            return;
-
-        logger.LogInformation("[{Contract}] Found {Count} file(s) matching {Pattern} in {Dir}",
-            c.ContractId, files.Count, pattern, inputDir);
-
-        foreach (var filePath in files)
-        {
-            ct.ThrowIfCancellationRequested();
-
-            var fileName = Path.GetFileName(filePath);
-            var correlationId = $"{c.ContractId}:{fileName}:{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
-
-            try
+            if (string.IsNullOrWhiteSpace(inputDir) || !Directory.Exists(inputDir))
             {
-                await using var fs = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                status = "Failed";
+                errorMessages.Add($"Input directory missing or not found: {inputDir}");
+                logger.LogWarning("[{Contract}] Input directory missing/not found: {Dir}", c.ContractId, inputDir);
+                return;
+            }
 
-                var loopResult = await csvLoop.ProcessAsync(
-                    csvStream: fs,
-                    rule: rule,
-                    contractForTypes: portToApi, // if your processor uses Request.Fields for type conversion
-                    onRow: async (rowNumber, inboundRow, token) =>
-                    {
-                        // One call per row (LoopCSV)
-                        return await portToApiEngine.ExecuteAsync(
-                            portToApi,
-                            inboundRow,
-                            new EngineContext(correlationId),
-                            token);
-                    },
-                    ct: ct);
+            var processedDir = c.Source?.ProcessedDirectory;
+            if (string.IsNullOrWhiteSpace(processedDir))
+                processedDir = Path.Combine(inputDir, "Processed");
 
-                if (loopResult.FailedRows > 0)
+            var errorDir = c.Source?.ErrorDirectory;
+            if (string.IsNullOrWhiteSpace(errorDir))
+                errorDir = Path.Combine(inputDir, "Error");
+
+            Directory.CreateDirectory(processedDir);
+            Directory.CreateDirectory(errorDir);
+
+            var rule = c.Rules?.LoopCSV;
+            if (rule is null)
+            {
+                status = "Failed";
+                errorMessages.Add("Missing Rules.LoopCSV configuration.");
+                logger.LogWarning("[{Contract}] Missing Rules.LoopCSV configuration.", c.ContractId);
+                return;
+            }
+
+            var portToApi = ToPortToApiContract(c);
+            var searchOption = (c.Source?.IncludeSubdirectories ?? false)
+                ? SearchOption.AllDirectories
+                : SearchOption.TopDirectoryOnly;
+
+            var files = Directory.EnumerateFiles(inputDir, pattern, searchOption)
+                .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (files.Count == 0)
+            {
+                return;
+            }
+
+            logger.LogInformation(
+                "[{Contract}] Found {Count} file(s) matching {Pattern} in {Dir}",
+                c.ContractId,
+                files.Count,
+                pattern,
+                inputDir);
+
+            status = "Success";
+
+            foreach (var filePath in files)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                var fileName = Path.GetFileName(filePath);
+                var correlationId = $"{c.ContractId}:{fileName}:{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
+
+                try
                 {
-                    logger.LogWarning(
-                        "[{Contract}] File {File} processed with failures. Total={Total} OK={OK} Failed={Failed}",
-                        c.ContractId, fileName, loopResult.TotalRows, loopResult.SucceededRows, loopResult.FailedRows);
+                    await using var fs = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
 
-                    var reportPath = Path.Combine(errorDir, $"{fileName}.errors.json");
-                    var reportJson = JsonSerializer.Serialize(new
+                    var loopResult = await csvLoop.ProcessAsync(
+                        csvStream: fs,
+                        rule: rule,
+                        contractForTypes: portToApi,
+                        onRow: async (_, inboundRow, token) =>
+                        {
+                            return await portToApiEngine.ExecuteAsync(
+                                portToApi,
+                                inboundRow,
+                                new EngineContext(correlationId),
+                                token);
+                        },
+                        ct: ct);
+
+                    processedCount += loopResult.TotalRows;
+
+                    if (loopResult.FailedRows > 0)
                     {
-                        contractId = c.ContractId,
-                        file = fileName,
-                        loopResult.TotalRows,
-                        loopResult.SucceededRows,
-                        loopResult.FailedRows,
-                        loopResult.Failures
-                    });
-                    await File.WriteAllTextAsync(reportPath, reportJson, ct);
+                        hadFailures = true;
+                        errorMessages.Add($"File '{fileName}' had {loopResult.FailedRows} failed row(s).");
 
+                        logger.LogWarning(
+                            "[{Contract}] File {File} processed with failures. Total={Total} OK={OK} Failed={Failed}",
+                            c.ContractId,
+                            fileName,
+                            loopResult.TotalRows,
+                            loopResult.SucceededRows,
+                            loopResult.FailedRows);
+
+                        var reportPath = Path.Combine(errorDir, $"{fileName}.errors.json");
+                        var reportJson = JsonSerializer.Serialize(new
+                        {
+                            contractId = c.ContractId,
+                            file = fileName,
+                            loopResult.TotalRows,
+                            loopResult.SucceededRows,
+                            loopResult.FailedRows,
+                            loopResult.Failures
+                        });
+                        await File.WriteAllTextAsync(reportPath, reportJson, ct);
+
+                        MoveTo(filePath, Path.Combine(errorDir, fileName));
+                    }
+                    else
+                    {
+                        logger.LogInformation(
+                            "[{Contract}] File {File} processed OK. Total={Total} OK={OK}",
+                            c.ContractId,
+                            fileName,
+                            loopResult.TotalRows,
+                            loopResult.SucceededRows);
+
+                        MoveTo(filePath, Path.Combine(processedDir, fileName));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    hadFailures = true;
+                    errorMessages.Add($"File '{fileName}' failed: {ex.Message}");
+                    logger.LogError(ex, "[{Contract}] Failed processing file {File}", c.ContractId, fileName);
                     MoveTo(filePath, Path.Combine(errorDir, fileName));
                 }
-                else
-                {
-                    logger.LogInformation(
-                        "[{Contract}] File {File} processed OK. Total={Total} OK={OK}",
-                        c.ContractId, fileName, loopResult.TotalRows, loopResult.SucceededRows);
-
-                    MoveTo(filePath, Path.Combine(processedDir, fileName));
-                }
             }
-            catch (Exception ex)
+
+            if (hadFailures)
             {
-                logger.LogError(ex, "[{Contract}] Failed processing file {File}", c.ContractId, fileName);
-                MoveTo(filePath, Path.Combine(errorDir, fileName));
+                status = "Failed";
+            }
+        }
+        finally
+        {
+            stopwatch.Stop();
+
+            if (activeSession is not null)
+            {
+                var metadata = EvaluationContractMetadataResolver.Resolve(c);
+                await evaluationRecordingService.RecordJobAsync(new EvaluationJobRecord
+                {
+                    RecordingSessionId = activeSession.SessionId,
+                    ContractId = c.ContractId,
+                    ContractName = c.Name,
+                    ContractType = metadata.ContractType,
+                    ScheduleMode = metadata.ScheduleMode,
+                    TriggerType = triggerType,
+                    SourceType = metadata.SourceType,
+                    SinkType = metadata.SinkType,
+                    StartTimestampUtc = startedAtUtc,
+                    EndTimestampUtc = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    Status = status,
+                    ErrorMessage = errorMessages.Count > 0 ? string.Join(" | ", errorMessages) : null,
+                    ProcessedRowsOrMessagesCount = processedCount
+                }, ct);
             }
         }
     }
 
     private static PortToApiContract ToPortToApiContract(FileToApiContract c)
     {
-        // Minimal adapter: PortToApiEngine uses Sink + Mappings (+ optional Request)
         return new PortToApiContract
         {
             ContractId = c.ContractId,
@@ -128,7 +195,7 @@ public sealed class FileToApiExecutor(
             Sink = c.Sink,
             Mappings = c.Mappings ?? [],
             Request = c.Request,
-            Name =  c.Name,
+            Name = c.Name,
             BusinessKeyFields = c.BusinessKeyFields
         };
     }

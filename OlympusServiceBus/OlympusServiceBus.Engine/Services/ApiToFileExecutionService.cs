@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.ApiToFile;
 using OlympusServiceBus.RuntimeState.Models;
@@ -13,23 +15,33 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
     private readonly IContractMessageStateService _messageStateService;
     private readonly ApiToApiBusinessKeyProvider _businessKeyProvider;
     private readonly ApiToApiPayloadHashProvider _payloadHashProvider;
+    private readonly IEvaluationRecordingService _evaluationRecordingService;
 
     public ApiToFileExecutionService(
         ApiToFileExecutor executor, 
         IContractExecutionStateService executionStateService, 
         IContractMessageStateService messageStateService, 
         ApiToApiBusinessKeyProvider businessKeyProvider, 
-        ApiToApiPayloadHashProvider payloadHashProvider)
+        ApiToApiPayloadHashProvider payloadHashProvider,
+        IEvaluationRecordingService evaluationRecordingService)
     {
         _executor = executor;
         _executionStateService = executionStateService;
         _messageStateService = messageStateService;
         _businessKeyProvider = businessKeyProvider;
         _payloadHashProvider = payloadHashProvider;
+        _evaluationRecordingService = evaluationRecordingService;
     }
     
-    public async Task ExecuteAsync(ApiToFileContract contract, CancellationToken cancellationToken)
+    public async Task ExecuteAsync(ApiToFileContract contract, string triggerType, CancellationToken cancellationToken)
     {
+        var activeSession = await _evaluationRecordingService.GetActiveSessionAsync(cancellationToken);
+        var startedAtUtc = DateTimeOffset.UtcNow;
+        var stopwatch = Stopwatch.StartNew();
+        var status = "Success";
+        string? errorMessage = null;
+        var processedCount = 0;
+
         await _executionStateService.SaveAsync(new ContractExecutionStateEntity
         {
             ContractId = contract.ContractId,
@@ -45,6 +57,8 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
 
             if (execution is null || execution.SinkPayload is null)
             {
+                status = "NoPayload";
+
                 await _executionStateService.SaveAsync(new ContractExecutionStateEntity
                 {
                     ContractId = contract.ContractId,
@@ -74,6 +88,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
                 existingState.LastSeenAt = now;
 
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
+                status = "DuplicateSkipped";
 
                 await _executionStateService.SaveAsync(new ContractExecutionStateEntity
                 {
@@ -91,6 +106,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
                 contract,
                 execution.SinkPayload,
                 cancellationToken);
+            processedCount = 1;
 
             var publishedAt = DateTimeOffset.UtcNow;
 
@@ -121,6 +137,9 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
         }
         catch (Exception ex)
         {
+            status = "Failed";
+            errorMessage = ex.Message;
+
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
                 ContractId = contract.ContractId,
@@ -131,6 +150,32 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
             }, cancellationToken);
 
             throw;
+        }
+        finally
+        {
+            stopwatch.Stop();
+
+            if (activeSession is not null)
+            {
+                var metadata = EvaluationContractMetadataResolver.Resolve(contract);
+                await _evaluationRecordingService.RecordJobAsync(new EvaluationJobRecord
+                {
+                    RecordingSessionId = activeSession.SessionId,
+                    ContractId = contract.ContractId,
+                    ContractName = contract.Name,
+                    ContractType = metadata.ContractType,
+                    ScheduleMode = metadata.ScheduleMode,
+                    TriggerType = triggerType,
+                    SourceType = metadata.SourceType,
+                    SinkType = metadata.SinkType,
+                    StartTimestampUtc = startedAtUtc,
+                    EndTimestampUtc = DateTimeOffset.UtcNow,
+                    DurationMilliseconds = stopwatch.ElapsedMilliseconds,
+                    Status = status,
+                    ErrorMessage = errorMessage,
+                    ProcessedRowsOrMessagesCount = processedCount
+                }, cancellationToken);
+            }
         }
     }
 }

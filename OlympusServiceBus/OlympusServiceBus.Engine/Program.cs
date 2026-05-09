@@ -1,3 +1,4 @@
+using OlympusServiceBus.Engine.Evaluation;
 using Microsoft.EntityFrameworkCore;
 using OlympusServiceBus.Engine.Execution;
 using OlympusServiceBus.Engine.Execution.FeedbackContracts;
@@ -29,6 +30,7 @@ builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
 builder.Services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
 builder.Services.Configure<WebHostOptions>(builder.Configuration.GetSection("WebHost"));
 builder.Services.AddSingleton<PortToApiReloadClient>();
+builder.Services.AddSingleton<IEvaluationRecordingService, FileEvaluationRecordingService>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();

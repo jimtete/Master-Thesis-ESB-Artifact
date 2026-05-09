@@ -2,6 +2,7 @@ using System.Windows;
 using System.IO;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.FeedbackContracts;
 using OlympusServiceBus.Engine.Execution.ApiToApi;
 using OlympusServiceBus.Engine.Execution.ApiToFile;
@@ -63,6 +64,7 @@ public partial class App : Application
         services.AddHttpClient();
         services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
         services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
+        services.AddSingleton<IEvaluationRecordingService, FileEvaluationRecordingService>();
 
         services.AddDbContext<RuntimeStateDbContext>(options =>
             options.UseSqlite($"Data Source={runtimeStateDbPath}"));

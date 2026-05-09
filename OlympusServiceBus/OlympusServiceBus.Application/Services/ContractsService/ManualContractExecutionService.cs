@@ -1,3 +1,4 @@
+using OlympusServiceBus.Engine.Evaluation;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -70,22 +71,22 @@ public sealed class ManualContractExecutionService : IManualContractExecutionSer
         {
             case ApiToApiContract apiToApi:
                 await services.GetRequiredService<IApiToApiExecutionService>()
-                    .ExecuteAsync(apiToApi, cancellationToken);
+                    .ExecuteAsync(apiToApi, EvaluationTriggerTypes.Manual, cancellationToken);
                 break;
 
             case ApiToFileContract apiToFile:
                 await services.GetRequiredService<IApiToFileExecutionService>()
-                    .ExecuteAsync(apiToFile, cancellationToken);
+                    .ExecuteAsync(apiToFile, EvaluationTriggerTypes.Manual, cancellationToken);
                 break;
 
             case FileToApiContract fileToApi:
                 await services.GetRequiredService<FileToApiExecutor>()
-                    .ExecuteOnce(fileToApi, cancellationToken);
+                    .ExecuteOnce(fileToApi, EvaluationTriggerTypes.Manual, cancellationToken);
                 break;
 
             case FileToFileContract fileToFile:
                 await services.GetRequiredService<FileToFileExecutor>()
-                    .ExecuteOnce(fileToFile, cancellationToken);
+                    .ExecuteOnce(fileToFile, EvaluationTriggerTypes.Manual, cancellationToken);
                 break;
 
             default:
