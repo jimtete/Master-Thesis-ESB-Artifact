@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.Transformation;
 using OlympusServiceBus.Utils.Contracts;
@@ -11,21 +12,25 @@ public class ApiToFileExecutor
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly FileSinkService _fileSinkService;
     private readonly IMappingEngine _mappingEngine;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public ApiToFileExecutor(
         ILogger<ApiToFileExecutor> logger,
         IHttpClientFactory httpClientFactory,
         FileSinkService fileSinkService,
-        IMappingEngine mappingEngine)
+        IMappingEngine mappingEngine,
+        IEvaluationVerboseLogger evaluationVerboseLogger)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _fileSinkService = fileSinkService;
         _mappingEngine = mappingEngine;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
 
     public async Task<ApiToFileExecutionResult?> BuildExecutionAsync(
         ApiToFileContract contract,
+        string correlationId,
         CancellationToken cancellationToken)
     {
         if (!contract.Enabled)
@@ -58,12 +63,46 @@ public class ApiToFileExecutor
         var client = _httpClientFactory.CreateClient();
 
         JsonObject? sourceObj;
+        var sourceFailureLogged = false;
         try
         {
-            using var resp = await client.GetAsync(contract.Source.Endpoint, cancellationToken);
-            resp.EnsureSuccessStatusCode();
+            _evaluationVerboseLogger.LogApiSourceRequest(
+                contract,
+                correlationId,
+                contract.Source.Method,
+                contract.Source.Endpoint);
 
+            using var resp = await client.GetAsync(contract.Source.Endpoint, cancellationToken);
             var text = await resp.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                var exception = new HttpRequestException(
+                    $"Source returned HTTP {(int)resp.StatusCode} ({resp.ReasonPhrase}).",
+                    null,
+                    resp.StatusCode);
+
+                _evaluationVerboseLogger.LogApiSourceFailure(
+                    contract,
+                    correlationId,
+                    contract.Source.Method,
+                    contract.Source.Endpoint,
+                    exception,
+                    (int)resp.StatusCode,
+                    text);
+                sourceFailureLogged = true;
+
+                throw exception;
+            }
+
+            _evaluationVerboseLogger.LogApiSourceResponse(
+                contract,
+                correlationId,
+                contract.Source.Method,
+                contract.Source.Endpoint,
+                (int)resp.StatusCode,
+                text);
+
             sourceObj = JsonNode.Parse(text) as JsonObject;
 
             if (sourceObj is null)
@@ -74,6 +113,16 @@ public class ApiToFileExecutor
         }
         catch (Exception ex)
         {
+            if (!sourceFailureLogged)
+            {
+                _evaluationVerboseLogger.LogApiSourceFailure(
+                    contract,
+                    correlationId,
+                    contract.Source.Method,
+                    contract.Source.Endpoint,
+                    ex);
+            }
+
             _logger.LogError(
                 ex,
                 "[{Contract}] Source call failed: {Endpoint}",
@@ -83,7 +132,19 @@ public class ApiToFileExecutor
             throw;
         }
 
-        var sinkPayload = _mappingEngine.BuildSinkPayload(sourceObj, contract.Mappings);
+        var sinkPayload = _mappingEngine.BuildSinkPayload(
+            sourceObj,
+            contract.Mappings,
+            contract.ContractId,
+            correlationId);
+
+        _evaluationVerboseLogger.LogTransformation(
+            contract,
+            correlationId,
+            contract.Mappings,
+            sourceObj,
+            sinkPayload,
+            sourceLabel: "source-response");
 
         if (sinkPayload.Count == 0)
         {

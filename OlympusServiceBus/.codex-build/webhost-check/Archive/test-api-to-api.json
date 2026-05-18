@@ -1,0 +1,14 @@
+{
+  "ApiToApi": {
+    "Source": { "Endpoint": "https://localhost:7278/get-random-guest-registration", "Method": "GET" },
+    "Sink": { "Endpoint": "http://localhost:5050/s2s-api/v1/Meetings", "Method": "POST" },
+    "Mappings": [
+      { "SourceFieldName": "firstName", "SinkFieldName": "firstName" },
+      { "SourceFieldName": "familyName", "SinkFieldName": "lastName" },
+      { "SourceFieldName": "email", "SinkFieldName": "emailAddress" },
+      { "SourceFieldName": "meetingDateTime", "SinkFieldName": "meetingTime" },
+      { "SourceFieldName": "duration", "SinkFieldName": "meetingDurationInHours"},
+      { "SourceFieldName": "registeredBy", "SinkFieldName": "registeredBy"}
+    ]
+  }
+}

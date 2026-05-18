@@ -13,6 +13,58 @@ While a session is active, execution timing records are written for these contra
 - `PortToApi`
 - `PortToFile`
 
+## Verbose evaluation logging
+
+Verbose runtime diagnostics are available for evaluation and demo runs. This does not change the CSV export format. It adds searchable console logs with prefixes such as:
+
+- `[EVAL]`
+- `[EVAL][ApiToApi]`
+- `[EVAL][PublishFailure]`
+- `[EVAL][Mapping]`
+
+### How to enable it
+
+Preferred options:
+
+1. Set `Evaluation:VerboseLogging:Enabled` to `true` in:
+   - `OlympusServiceBus.Engine/appsettings.json`
+   - `OlympusServiceBus.WebHost/appsettings.json`
+2. Or set environment variable `OLYMPUS_EVALUATION_VERBOSE=true` before starting the processes.
+
+Optional body length limit:
+
+- `Evaluation:VerboseLogging:MaxBodyLength` controls how much request/response body text is printed.
+- Default: `4096`
+
+The environment variable overrides the appsettings value.
+
+### What gets logged
+
+When verbose logging is enabled, the console includes:
+
+- contract execution start/end with `ContractId`, `ContractName`, `ContractType`, `ScheduleMode`, `TriggerType`, `CorrelationId`, timestamps, duration, and final status
+- API source call URL, method, HTTP status code, response body, and source-call exceptions
+- API sink call URL, method, outbound payload, HTTP status code, response body, and sink-call exceptions
+- transformation type, mapping field definitions, mapping errors, and final outbound payload
+- runtime-state details including `BusinessKey`, `PayloadHash`, `PublishStatus`, `PublishAttemptCount`, and `LastPublishError`
+- file execution details including input directory, search pattern, processed file, row totals, failure counts, error report path, and final destination path
+- port execution details including listener path, inbound payload, generated outbound payload, and the response returned to the caller
+
+Sensitive-looking payload fields such as `password`, `secret`, `token`, `authorization`, `cookie`, and `api_key` are redacted before logging.
+
+### Where to look when a CSV row says `Failed`
+
+Search the console output for the same `ContractId` and then the matching `CorrelationId`.
+
+For `ApiToApi` failures, the most useful log groups are:
+
+- `[EVAL][ApiToApi][ExecutionStart]`
+- `[EVAL][ApiToApi][ApiSource]`
+- `[EVAL][ApiToApi][ApiSink]`
+- `[EVAL][ApiToApi][PublishFailure]`
+- `[EVAL][RuntimeState]`
+- `[EVAL][ApiToApi][ExecutionEnd]`
+
 ## How to start recording
 
 1. Open `OlympusServiceBus.Application`.

@@ -744,7 +744,7 @@ public class ContractsExplorerService : IContractsExplorerService
 
         var targetFields = (mapping.TargetFields ?? [])
             .Where(static x => !string.IsNullOrWhiteSpace(x))
-            .SelectMany(static x => x.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .SelectMany(static x => x.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             .Where(static x => !string.IsNullOrWhiteSpace(x))
             .ToArray();
 

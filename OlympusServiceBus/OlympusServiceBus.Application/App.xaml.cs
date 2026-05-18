@@ -61,10 +61,17 @@ public partial class App : Application
         var runtimeStateDbPath = Path.Combine(appDataDirectoryPath, "runtime-state.db");
 
         services.AddLogging();
+        services.AddOptions();
         services.AddHttpClient();
         services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
         services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
         services.AddSingleton<IEvaluationRecordingService, FileEvaluationRecordingService>();
+        services.Configure<EvaluationVerboseLoggingOptions>(options =>
+        {
+            options.Enabled = false;
+            options.MaxBodyLength = 4096;
+        });
+        services.AddSingleton<IEvaluationVerboseLogger, EvaluationVerboseLogger>();
 
         services.AddDbContext<RuntimeStateDbContext>(options =>
             options.UseSqlite($"Data Source={runtimeStateDbPath}"));

@@ -16,6 +16,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
     private readonly ApiToApiBusinessKeyProvider _businessKeyProvider;
     private readonly ApiToApiPayloadHashProvider _payloadHashProvider;
     private readonly IEvaluationRecordingService _evaluationRecordingService;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public ApiToFileExecutionService(
         ApiToFileExecutor executor, 
@@ -23,7 +24,8 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
         IContractMessageStateService messageStateService, 
         ApiToApiBusinessKeyProvider businessKeyProvider, 
         ApiToApiPayloadHashProvider payloadHashProvider,
-        IEvaluationRecordingService evaluationRecordingService)
+        IEvaluationRecordingService evaluationRecordingService,
+        IEvaluationVerboseLogger evaluationVerboseLogger)
     {
         _executor = executor;
         _executionStateService = executionStateService;
@@ -31,6 +33,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
         _businessKeyProvider = businessKeyProvider;
         _payloadHashProvider = payloadHashProvider;
         _evaluationRecordingService = evaluationRecordingService;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
     
     public async Task ExecuteAsync(ApiToFileContract contract, string triggerType, CancellationToken cancellationToken)
@@ -38,9 +41,12 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
         var activeSession = await _evaluationRecordingService.GetActiveSessionAsync(cancellationToken);
         var startedAtUtc = DateTimeOffset.UtcNow;
         var stopwatch = Stopwatch.StartNew();
+        var correlationId = _evaluationVerboseLogger.CreateCorrelationId(contract.ContractId, "api-to-file");
         var status = "Success";
         string? errorMessage = null;
         var processedCount = 0;
+
+        _evaluationVerboseLogger.LogExecutionStarted(contract, triggerType, correlationId, startedAtUtc);
 
         await _executionStateService.SaveAsync(new ContractExecutionStateEntity
         {
@@ -53,7 +59,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
 
         try
         {
-            var execution = await _executor.BuildExecutionAsync(contract, cancellationToken);
+            var execution = await _executor.BuildExecutionAsync(contract, correlationId, cancellationToken);
 
             if (execution is null || execution.SinkPayload is null)
             {
@@ -88,6 +94,12 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
                 existingState.LastSeenAt = now;
 
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(
+                    contract,
+                    correlationId,
+                    existingState,
+                    duplicateSkipped: true,
+                    note: "Duplicate payload skipped.");
                 status = "DuplicateSkipped";
 
                 await _executionStateService.SaveAsync(new ContractExecutionStateEntity
@@ -102,7 +114,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
                 return;
             }
 
-            var writeResult = await _executor.WritePayloadAsync(
+            await _executor.WritePayloadAsync(
                 contract,
                 execution.SinkPayload,
                 cancellationToken);
@@ -110,7 +122,7 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
 
             var publishedAt = DateTimeOffset.UtcNow;
 
-            await _messageStateService.SaveAsync(new ContractMessageStateEntity
+            var updatedState = new ContractMessageStateEntity
             {
                 ContractId = contract.ContractId,
                 ContractName = contract.Name,
@@ -124,7 +136,10 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
                 PublishAttemptCount = (existingState?.PublishAttemptCount ?? 0) + 1,
                 LastPublishAttemptAt = publishedAt,
                 LastPublishError = null
-            }, cancellationToken);
+            };
+
+            await _messageStateService.SaveAsync(updatedState, cancellationToken);
+            _evaluationVerboseLogger.LogRuntimeState(contract, correlationId, updatedState, note: "Payload written to file sink.");
 
             await _executionStateService.SaveAsync(new ContractExecutionStateEntity
             {
@@ -154,6 +169,15 @@ public sealed class ApiToFileExecutionService : IApiToFileExecutionService
         finally
         {
             stopwatch.Stop();
+            _evaluationVerboseLogger.LogExecutionCompleted(
+                contract,
+                triggerType,
+                correlationId,
+                startedAtUtc,
+                DateTimeOffset.UtcNow,
+                stopwatch.ElapsedMilliseconds,
+                status,
+                errorMessage);
 
             if (activeSession is not null)
             {

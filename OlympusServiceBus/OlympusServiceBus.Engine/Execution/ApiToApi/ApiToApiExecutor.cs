@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.Transformation;
 using OlympusServiceBus.Utils.Contracts;
 
@@ -10,19 +11,23 @@ public class ApiToApiExecutor
     private readonly ILogger<ApiToApiExecutor> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMappingEngine _mappingEngine;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public ApiToApiExecutor(
         ILogger<ApiToApiExecutor> logger,
         IHttpClientFactory httpClientFactory,
-        IMappingEngine mappingEngine)
+        IMappingEngine mappingEngine,
+        IEvaluationVerboseLogger evaluationVerboseLogger)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _mappingEngine = mappingEngine;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
 
     public async Task<ApiToApiExecutionResult?> BuildExecutionAsync(
         ApiToApiContract contract,
+        string correlationId,
         CancellationToken cancellationToken)
     {
         if (!contract.Enabled)
@@ -51,12 +56,46 @@ public class ApiToApiExecutor
         var client = _httpClientFactory.CreateClient();
 
         JsonObject? sourceObj;
+        var sourceFailureLogged = false;
         try
         {
-            using var resp = await client.GetAsync(contract.Source.Endpoint, cancellationToken);
-            resp.EnsureSuccessStatusCode();
+            _evaluationVerboseLogger.LogApiSourceRequest(
+                contract,
+                correlationId,
+                contract.Source.Method,
+                contract.Source.Endpoint);
 
+            using var resp = await client.GetAsync(contract.Source.Endpoint, cancellationToken);
             var text = await resp.Content.ReadAsStringAsync(cancellationToken);
+
+            if (!resp.IsSuccessStatusCode)
+            {
+                var exception = new HttpRequestException(
+                    $"Source returned HTTP {(int)resp.StatusCode} ({resp.ReasonPhrase}).",
+                    null,
+                    resp.StatusCode);
+
+                _evaluationVerboseLogger.LogApiSourceFailure(
+                    contract,
+                    correlationId,
+                    contract.Source.Method,
+                    contract.Source.Endpoint,
+                    exception,
+                    (int)resp.StatusCode,
+                    text);
+                sourceFailureLogged = true;
+
+                throw exception;
+            }
+
+            _evaluationVerboseLogger.LogApiSourceResponse(
+                contract,
+                correlationId,
+                contract.Source.Method,
+                contract.Source.Endpoint,
+                (int)resp.StatusCode,
+                text);
+
             sourceObj = JsonNode.Parse(text) as JsonObject;
 
             if (sourceObj is null)
@@ -67,6 +106,16 @@ public class ApiToApiExecutor
         }
         catch (Exception ex)
         {
+            if (!sourceFailureLogged)
+            {
+                _evaluationVerboseLogger.LogApiSourceFailure(
+                    contract,
+                    correlationId,
+                    contract.Source.Method,
+                    contract.Source.Endpoint,
+                    ex);
+            }
+
             _logger.LogError(
                 ex,
                 "[{Contract}] Source call failed: {Endpoint}",
@@ -76,7 +125,19 @@ public class ApiToApiExecutor
             throw;
         }
 
-        var sinkPayload = _mappingEngine.BuildSinkPayload(sourceObj, contract.Mappings);
+        var sinkPayload = _mappingEngine.BuildSinkPayload(
+            sourceObj,
+            contract.Mappings,
+            contract.ContractId,
+            correlationId);
+
+        _evaluationVerboseLogger.LogTransformation(
+            contract,
+            correlationId,
+            contract.Mappings,
+            sourceObj,
+            sinkPayload,
+            sourceLabel: "source-response");
 
         if (sinkPayload.Count == 0)
         {
@@ -94,14 +155,24 @@ public class ApiToApiExecutor
     public async Task<JsonObject?> SendPayloadAsync(
         ApiToApiContract contract,
         JsonObject sinkPayload,
+        string correlationId,
         CancellationToken cancellationToken)
     {
         var client = _httpClientFactory.CreateClient();
+        var method = contract.Sink.Method ?? "POST";
+        var sinkFailureLogged = false;
 
         try
         {
+            _evaluationVerboseLogger.LogApiSinkRequest(
+                contract,
+                correlationId,
+                method,
+                contract.Sink.Endpoint,
+                sinkPayload);
+
             using var req = new HttpRequestMessage(
-                new HttpMethod(contract.Sink.Method ?? "POST"),
+                new HttpMethod(method),
                 contract.Sink.Endpoint)
             {
                 Content = JsonContent.Create(sinkPayload)
@@ -110,7 +181,26 @@ public class ApiToApiExecutor
             using var resp = await client.SendAsync(req, cancellationToken);
             var responseText = await resp.Content.ReadAsStringAsync(cancellationToken);
 
-            resp.EnsureSuccessStatusCode();
+            if (!resp.IsSuccessStatusCode)
+            {
+                var exception = new HttpRequestException(
+                    $"Sink returned HTTP {(int)resp.StatusCode} ({resp.ReasonPhrase}).",
+                    null,
+                    resp.StatusCode);
+
+                _evaluationVerboseLogger.LogApiSinkFailure(
+                    contract,
+                    correlationId,
+                    method,
+                    contract.Sink.Endpoint,
+                    sinkPayload,
+                    exception,
+                    (int)resp.StatusCode,
+                    responseText);
+                sinkFailureLogged = true;
+
+                throw exception;
+            }
 
             JsonObject? responsePayload = null;
 
@@ -118,6 +208,15 @@ public class ApiToApiExecutor
             {
                 responsePayload = JsonNode.Parse(responseText) as JsonObject;
             }
+
+            _evaluationVerboseLogger.LogApiSinkResponse(
+                contract,
+                correlationId,
+                method,
+                contract.Sink.Endpoint,
+                (int)resp.StatusCode,
+                responseText,
+                sinkPayload);
 
             _logger.LogInformation(
                 "[{Contract}] Forwarded payload to sink. Payload: {Payload}",
@@ -128,6 +227,17 @@ public class ApiToApiExecutor
         }
         catch (Exception ex)
         {
+            if (!sinkFailureLogged)
+            {
+                _evaluationVerboseLogger.LogApiSinkFailure(
+                    contract,
+                    correlationId,
+                    method,
+                    contract.Sink.Endpoint,
+                    sinkPayload,
+                    ex);
+            }
+
             _logger.LogError(
                 ex,
                 "[{Contract}] Sink call failed: {Endpoint}",

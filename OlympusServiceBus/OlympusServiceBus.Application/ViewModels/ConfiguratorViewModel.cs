@@ -899,7 +899,7 @@ public class ConfiguratorViewModel : INotifyPropertyChanged
 
                 if (sinkValues.Count > 0)
                 {
-                    targetFields.Add(string.Join(";", sinkValues));
+                    targetFields.AddRange(sinkValues);
                 }
             }
 

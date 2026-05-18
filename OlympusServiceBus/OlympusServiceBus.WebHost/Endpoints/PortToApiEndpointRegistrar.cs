@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.PortToApi;
@@ -15,17 +16,20 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
     private readonly PortToApiSchemaBuilder _schemaBuilder;
     private readonly PortToApiInboundValidator _validator;
     private readonly IEvaluationRecordingService _evaluationRecordingService;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public PortToApiEndpointRegistrar(
         ILogger<PortToApiEndpointRegistrar> logger,
         PortToApiSchemaBuilder schemaBuilder,
         PortToApiInboundValidator validator,
-        IEvaluationRecordingService evaluationRecordingService)
+        IEvaluationRecordingService evaluationRecordingService,
+        IEvaluationVerboseLogger evaluationVerboseLogger)
     {
         _logger = logger;
         _schemaBuilder = schemaBuilder;
         _validator = validator;
         _evaluationRecordingService = evaluationRecordingService;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
 
     public void Register(WebApplication app, List<PortToApiContract> contracts)
@@ -61,6 +65,12 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                     string? errorMessage = null;
                     var processedCount = 0;
                     JsonObject inboundObj;
+                    var correlationId =
+                        ctx.Request.Headers.TryGetValue("X-Correlation-Id", out var cid) && !string.IsNullOrWhiteSpace(cid)
+                            ? cid.ToString()
+                            : Guid.NewGuid().ToString("N");
+
+                    _evaluationVerboseLogger.LogExecutionStarted(c, EvaluationTriggerTypes.PortRequest, correlationId, startedAtUtc);
 
                     try
                     {
@@ -79,6 +89,13 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                     {
                         status = "Failed";
                         errorMessage = $"Invalid JSON body: {ex.Message}";
+                        _evaluationVerboseLogger.LogPortResponse(
+                            c,
+                            correlationId,
+                            path,
+                            null,
+                            StatusCodes.Status400BadRequest,
+                            new { error = "Invalid JSON body", detail = ex.Message });
                         await TryRecordAsync(c, activeSession, startedAtUtc, stopwatch, status, errorMessage, processedCount, ctx.RequestAborted);
                         return Results.BadRequest(new { error = "Invalid JSON body", detail = ex.Message });
                     }
@@ -88,14 +105,17 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                     {
                         status = "Failed";
                         errorMessage = string.Join(" | ", errors);
+                        _evaluationVerboseLogger.LogPortResponse(
+                            c,
+                            correlationId,
+                            path,
+                            null,
+                            StatusCodes.Status400BadRequest,
+                            new { error = "Payload validation failed", errors });
                         await TryRecordAsync(c, activeSession, startedAtUtc, stopwatch, status, errorMessage, processedCount, ctx.RequestAborted);
                         return Results.BadRequest(new { error = "Payload validation failed", errors });
                     }
-
-                    var correlationId =
-                        ctx.Request.Headers.TryGetValue("X-Correlation-Id", out var cid) && !string.IsNullOrWhiteSpace(cid)
-                            ? cid.ToString()
-                            : Guid.NewGuid().ToString("N");
+                    _evaluationVerboseLogger.LogPortRequest(c, correlationId, path, inboundObj);
 
                     try
                     {
@@ -108,6 +128,13 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                         status = result.Success ? "Success" : "Failed";
                         errorMessage = result.Error;
                         processedCount = result.Success ? 1 : 0;
+                        _evaluationVerboseLogger.LogPortResponse(
+                            c,
+                            correlationId,
+                            path,
+                            TryExtractOutboundPayload(result.Body),
+                            result.StatusCode,
+                            result.Body);
                         await TryRecordAsync(c, activeSession, startedAtUtc, stopwatch, status, errorMessage, processedCount, ctx.RequestAborted);
 
                         return ToHttpResult(result);
@@ -118,6 +145,18 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
                         errorMessage = ex.Message;
                         await TryRecordAsync(c, activeSession, startedAtUtc, stopwatch, status, errorMessage, processedCount, ctx.RequestAborted);
                         throw;
+                    }
+                    finally
+                    {
+                        _evaluationVerboseLogger.LogExecutionCompleted(
+                            c,
+                            EvaluationTriggerTypes.PortRequest,
+                            correlationId,
+                            startedAtUtc,
+                            DateTimeOffset.UtcNow,
+                            stopwatch.ElapsedMilliseconds,
+                            status,
+                            errorMessage);
                     }
                 })
                 .WithName(endpointName)
@@ -175,5 +214,18 @@ public sealed class PortToApiEndpointRegistrar : IPortToApiEndpointRegistrar
             error = r.Error ?? "EngineError",
             details = r.Body
         }, statusCode: r.StatusCode);
+    }
+
+    private static JsonObject? TryExtractOutboundPayload(object? body)
+    {
+        try
+        {
+            var node = JsonSerializer.SerializeToNode(body) as JsonObject;
+            return node?["outbound"] as JsonObject;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

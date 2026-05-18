@@ -10,17 +10,21 @@ public sealed class FileToApiExecutor(
     ILogger<FileToApiExecutor> logger,
     CsvLoopProcessor csvLoop,
     IPortToApiEngine portToApiEngine,
-    IEvaluationRecordingService evaluationRecordingService)
+    IEvaluationRecordingService evaluationRecordingService,
+    IEvaluationVerboseLogger evaluationVerboseLogger)
 {
     public async Task ExecuteOnce(FileToApiContract c, string triggerType, CancellationToken ct)
     {
         var activeSession = await evaluationRecordingService.GetActiveSessionAsync(ct);
         var startedAtUtc = DateTimeOffset.UtcNow;
         var stopwatch = Stopwatch.StartNew();
+        var executionCorrelationId = evaluationVerboseLogger.CreateCorrelationId(c.ContractId, "file-to-api");
         var status = "NoFiles";
         var errorMessages = new List<string>();
         var processedCount = 0;
         var hadFailures = false;
+
+        evaluationVerboseLogger.LogExecutionStarted(c, triggerType, executionCorrelationId, startedAtUtc);
 
         try
         {
@@ -66,8 +70,11 @@ public sealed class FileToApiExecutor(
 
             if (files.Count == 0)
             {
+                evaluationVerboseLogger.LogFileScan(c, executionCorrelationId, inputDir, pattern, 0);
                 return;
             }
+
+            evaluationVerboseLogger.LogFileScan(c, executionCorrelationId, inputDir, pattern, files.Count);
 
             logger.LogInformation(
                 "[{Contract}] Found {Count} file(s) matching {Pattern} in {Dir}",
@@ -84,6 +91,9 @@ public sealed class FileToApiExecutor(
 
                 var fileName = Path.GetFileName(filePath);
                 var correlationId = $"{c.ContractId}:{fileName}:{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
+                evaluationVerboseLogger.LogFileProcessingStarted(c, correlationId, filePath);
+                string? errorReportPath = null;
+                string? destinationPath = null;
 
                 try
                 {
@@ -118,7 +128,7 @@ public sealed class FileToApiExecutor(
                             loopResult.SucceededRows,
                             loopResult.FailedRows);
 
-                        var reportPath = Path.Combine(errorDir, $"{fileName}.errors.json");
+                        errorReportPath = Path.Combine(errorDir, $"{fileName}.errors.json");
                         var reportJson = JsonSerializer.Serialize(new
                         {
                             contractId = c.ContractId,
@@ -128,9 +138,10 @@ public sealed class FileToApiExecutor(
                             loopResult.FailedRows,
                             loopResult.Failures
                         });
-                        await File.WriteAllTextAsync(reportPath, reportJson, ct);
+                        await File.WriteAllTextAsync(errorReportPath, reportJson, ct);
 
-                        MoveTo(filePath, Path.Combine(errorDir, fileName));
+                        destinationPath = Path.Combine(errorDir, fileName);
+                        MoveTo(filePath, destinationPath);
                     }
                     else
                     {
@@ -141,15 +152,36 @@ public sealed class FileToApiExecutor(
                             loopResult.TotalRows,
                             loopResult.SucceededRows);
 
-                        MoveTo(filePath, Path.Combine(processedDir, fileName));
+                        destinationPath = Path.Combine(processedDir, fileName);
+                        MoveTo(filePath, destinationPath);
                     }
+
+                    evaluationVerboseLogger.LogFileProcessingCompleted(
+                        c,
+                        correlationId,
+                        filePath,
+                        loopResult.TotalRows,
+                        loopResult.SucceededRows,
+                        loopResult.FailedRows,
+                        errorReportPath,
+                        destinationPath);
                 }
                 catch (Exception ex)
                 {
                     hadFailures = true;
                     errorMessages.Add($"File '{fileName}' failed: {ex.Message}");
                     logger.LogError(ex, "[{Contract}] Failed processing file {File}", c.ContractId, fileName);
-                    MoveTo(filePath, Path.Combine(errorDir, fileName));
+                    destinationPath = Path.Combine(errorDir, fileName);
+                    MoveTo(filePath, destinationPath);
+                    evaluationVerboseLogger.LogFileProcessingCompleted(
+                        c,
+                        correlationId,
+                        filePath,
+                        0,
+                        0,
+                        1,
+                        errorReportPath,
+                        destinationPath);
                 }
             }
 
@@ -161,6 +193,15 @@ public sealed class FileToApiExecutor(
         finally
         {
             stopwatch.Stop();
+            evaluationVerboseLogger.LogExecutionCompleted(
+                c,
+                triggerType,
+                executionCorrelationId,
+                startedAtUtc,
+                DateTimeOffset.UtcNow,
+                stopwatch.ElapsedMilliseconds,
+                status,
+                errorMessages.Count > 0 ? string.Join(" | ", errorMessages) : null);
 
             if (activeSession is not null)
             {

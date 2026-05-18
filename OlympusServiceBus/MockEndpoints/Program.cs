@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -247,6 +248,44 @@ app.MapPost("/guest-registration-status", (
     .Produces(StatusCodes.Status200OK)
     .WithOpenApi();
 
+app.MapPost("/useless-facts-sink", (
+        UselessFactSinkRequest request,
+        ILogger<Program> logger) =>
+    {
+        var normalizedSource = request.Source ?? request.SourceSite;
+
+        if (string.IsNullOrWhiteSpace(request.Id) ||
+            string.IsNullOrWhiteSpace(request.Text) ||
+            string.IsNullOrWhiteSpace(normalizedSource))
+        {
+            return Results.BadRequest(new
+            {
+                error = "Payload validation failed",
+                required = new[] { "id", "text", "source" }
+            });
+        }
+
+        logger.LogInformation(
+            "Received useless fact sink payload. Id: {Id}, Text: {Text}, Source: {Source}",
+            request.Id,
+            request.Text,
+            normalizedSource);
+
+        return Results.Ok(new
+        {
+            accepted = true,
+            id = request.Id,
+            text = request.Text,
+            source = normalizedSource,
+            receivedAtUtc = DateTime.UtcNow
+        });
+    })
+    .WithName("UselessFactsSink")
+    .WithTags("Mock Sinks")
+    .Produces(StatusCodes.Status200OK)
+    .Produces(StatusCodes.Status400BadRequest)
+    .WithOpenApi();
+
 
 
 app.Run();
@@ -293,4 +332,11 @@ public record BusinessIncomeSnapshot(
     int BusinessTwoIncome,
     string BusinessThreeName,
     int BusinessThreeIncome
+);
+
+public record UselessFactSinkRequest(
+    string? Id,
+    string? Text,
+    string? Source,
+    [property: JsonPropertyName("source-site")] string? SourceSite
 );

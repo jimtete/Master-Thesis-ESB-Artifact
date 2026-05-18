@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.Files;
 using OlympusServiceBus.Engine.Execution.PortToApi;
 using OlympusServiceBus.RuntimeState.Models;
@@ -16,19 +17,22 @@ public class PortToFileEngine : IPortToFileEngine
     private readonly PortToApiBusinessKeyProvider _businessKeyProvider;
     private readonly PortToApiPayloadHashProvider _payloadHashProvider;
     private readonly FileSinkService _fileSinkService;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public PortToFileEngine(
         ILogger<PortToFileEngine> logger, 
         IContractMessageStateService messageStateService, 
         PortToApiBusinessKeyProvider businessKeyProvider, 
         PortToApiPayloadHashProvider payloadHashProvider, 
-        FileSinkService fileSinkService)
+        FileSinkService fileSinkService,
+        IEvaluationVerboseLogger evaluationVerboseLogger)
     {
         _logger = logger;
         _messageStateService = messageStateService;
         _businessKeyProvider = businessKeyProvider;
         _payloadHashProvider = payloadHashProvider;
         _fileSinkService = fileSinkService;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
 
     public async Task<EngineResult> ExecuteAsync(
@@ -49,6 +53,14 @@ public class PortToFileEngine : IPortToFileEngine
         var adapterContract = ToPortToApiContract(portToFileContract);
 
         var (outbound, mappingErrors) = PortToApiPayloadBuilder.BuildOutbound(adapterContract, inbound);
+        _evaluationVerboseLogger.LogTransformation(
+            portToFileContract,
+            context.CorrelationId,
+            portToFileContract.Mappings,
+            inbound,
+            outbound,
+            mappingErrors,
+            sourceLabel: "inbound-request");
 
         if (mappingErrors.Count > 0)
         {
@@ -81,6 +93,12 @@ public class PortToFileEngine : IPortToFileEngine
         {
             existingState.LastSeenAt = DateTimeOffset.UtcNow;
             await _messageStateService.SaveAsync(existingState, cancellationToken);
+            _evaluationVerboseLogger.LogRuntimeState(
+                portToFileContract,
+                context.CorrelationId,
+                existingState,
+                duplicateSkipped: true,
+                note: "Duplicate inbound payload skipped.");
 
             return new EngineResult(
                 Success: true,
@@ -119,7 +137,7 @@ public class PortToFileEngine : IPortToFileEngine
 
             if (existingState is null)
             {
-                await _messageStateService.SaveAsync(new ContractMessageStateEntity
+                var publishedState = new ContractMessageStateEntity
                 {
                     ContractId = portToFileContract.ContractId,
                     ContractName = portToFileContract.Name,
@@ -133,7 +151,14 @@ public class PortToFileEngine : IPortToFileEngine
                     PublishAttemptCount = 1,
                     LastPublishAttemptAt = attemptTime,
                     LastPublishError = null
-                }, cancellationToken);
+                };
+
+                await _messageStateService.SaveAsync(publishedState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(
+                    portToFileContract,
+                    context.CorrelationId,
+                    publishedState,
+                    note: "Payload written to file sink.");
             }
             else
             {
@@ -147,6 +172,11 @@ public class PortToFileEngine : IPortToFileEngine
                 existingState.LastPublishError = null;
 
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(
+                    portToFileContract,
+                    context.CorrelationId,
+                    existingState,
+                    note: "Payload written to file sink.");
             }
 
             return new EngineResult(
@@ -173,7 +203,7 @@ public class PortToFileEngine : IPortToFileEngine
 
             if (existingState is null)
             {
-                await _messageStateService.SaveAsync(new ContractMessageStateEntity
+                var failedState = new ContractMessageStateEntity
                 {
                     ContractId = portToFileContract.ContractId,
                     ContractName = portToFileContract.Name,
@@ -187,7 +217,14 @@ public class PortToFileEngine : IPortToFileEngine
                     PublishAttemptCount = 1,
                     LastPublishAttemptAt = attemptTime,
                     LastPublishError = ex.Message
-                }, cancellationToken);
+                };
+
+                await _messageStateService.SaveAsync(failedState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(
+                    portToFileContract,
+                    context.CorrelationId,
+                    failedState,
+                    note: "File sink write failed.");
             }
             else
             {
@@ -200,6 +237,11 @@ public class PortToFileEngine : IPortToFileEngine
                 existingState.LastPublishError = ex.Message;
 
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(
+                    portToFileContract,
+                    context.CorrelationId,
+                    existingState,
+                    note: "File sink write failed.");
             }
 
             return new EngineResult(

@@ -2,10 +2,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using OlympusServiceBusApplication.Models;
+using OlympusServiceBusApplication.Services.AppSettingsService;
 
 namespace OlympusServiceBusApplication.Services.BackgroundRuntimeService;
 
-public sealed class BackgroundRuntimeService : IBackgroundRuntimeService
+public sealed class BackgroundRuntimeService(IAppSettingsService appSettingsService) : IBackgroundRuntimeService
 {
     private const string WebHostAddress = "127.0.0.1";
     private const int WebHostPort = 5099;
@@ -16,12 +17,12 @@ public sealed class BackgroundRuntimeService : IBackgroundRuntimeService
 
     public async Task<BackgroundRuntimeResult> EnsureStartedAsync()
     {
-        var startScriptPath = ResolveStartScriptPath();
+        var startScriptPath = await ResolveStartScriptPathAsync();
         if (string.IsNullOrWhiteSpace(startScriptPath))
         {
             return new BackgroundRuntimeResult(
                 Success: false,
-                Message: "Background runtime auto-start is available from the installed application package.",
+                Message: "Background runtime auto-start requires either an installed application package or a configured custom startup script path.",
                 IsUnsupported: true);
         }
 
@@ -107,7 +108,21 @@ public sealed class BackgroundRuntimeService : IBackgroundRuntimeService
         }
     }
 
-    private static string? ResolveStartScriptPath()
+    private async Task<string?> ResolveStartScriptPathAsync()
+    {
+        var settings = await appSettingsService.LoadAsync();
+        var configuredScriptPath = settings.BackgroundRuntimeStartupScriptPath?.Trim();
+
+        if (!string.IsNullOrWhiteSpace(configuredScriptPath))
+        {
+            var fullPath = Path.GetFullPath(configuredScriptPath);
+            return File.Exists(fullPath) ? fullPath : null;
+        }
+
+        return ResolveInstalledStartScriptPath();
+    }
+
+    private static string? ResolveInstalledStartScriptPath()
     {
         var processPath = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(processPath))

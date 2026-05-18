@@ -7,5 +7,7 @@ public interface IMappingEngine
 {
     JsonObject BuildSinkPayload(
         JsonObject sourcePayload,
-        IReadOnlyCollection<ApiFieldConfig>? mappings);
+        IReadOnlyCollection<ApiFieldConfig>? mappings,
+        string? contractId = null,
+        string? correlationId = null);
 }

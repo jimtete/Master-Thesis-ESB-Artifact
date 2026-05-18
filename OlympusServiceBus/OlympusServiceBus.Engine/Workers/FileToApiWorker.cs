@@ -1,6 +1,8 @@
 using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Execution.FileToApi;
 using OlympusServiceBus.Engine.Helpers;
+using OlympusServiceBus.Engine.Scheduling;
+using OlympusServiceBus.RuntimeState.Models;
 using OlympusServiceBus.Utils.Contracts;
 
 namespace OlympusServiceBus.Engine.Workers;
@@ -19,28 +21,53 @@ public sealed class FileToApiWorker
         logger.LogInformation("FileToApiWorker started.");
 
         var lastRun = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        var activationTracker = new ContractActivationTracker();
 
         while (!stoppingToken.IsCancellationRequested)
         {
             var contracts = registry.GetContract<FileToApiContract>();
             SyncLastRun(lastRun, contracts);
+            activationTracker.SyncKnownContracts(contracts.Select(static contract => contract.ContractId));
 
             foreach (var contract in contracts)
             {
+                var nowUtc = DateTimeOffset.UtcNow;
+                var activationStartedAtUtc = activationTracker.Observe(contract.ContractId, contract.Enabled, nowUtc);
+
                 if (!contract.Enabled)
                     continue;
 
-                var dueAfter = TimeSpan.FromSeconds(Math.Max(1, contract.IntervalSeconds));
-                var nextDue = lastRun[contract.ContractId] + dueAfter;
+                var resolvedSchedule = ContractScheduleResolver.Resolve(contract);
+                ContractExecutionStateEntity? executionState = null;
+                var lastRunStartedAt = lastRun[contract.ContractId];
 
-                if (DateTimeOffset.UtcNow >= nextDue)
+                if (lastRunStartedAt != DateTimeOffset.MinValue)
                 {
-                    using var scope = scopeFactory.CreateScope();
-                    var executor = scope.ServiceProvider.GetRequiredService<FileToApiExecutor>();
-
-                    await executor.ExecuteOnce(contract, EvaluationTriggerTypes.FilePolling, stoppingToken);
-                    lastRun[contract.ContractId] = DateTimeOffset.UtcNow;
+                    executionState = new ContractExecutionStateEntity
+                    {
+                        ContractId = contract.ContractId,
+                        ContractName = contract.Name,
+                        LastRunStartedAt = lastRunStartedAt
+                    };
                 }
+
+                var isDue = ContractScheduleDueEvaluator.IsDue(
+                    resolvedSchedule,
+                    executionState,
+                    nowUtc,
+                    activationStartedAtUtc);
+
+                if (!isDue)
+                {
+                    continue;
+                }
+
+                using var scope = scopeFactory.CreateScope();
+                var executor = scope.ServiceProvider.GetRequiredService<FileToApiExecutor>();
+
+                await executor.ExecuteOnce(contract, EvaluationTriggerTypes.FilePolling, stoppingToken);
+                lastRun[contract.ContractId] = DateTimeOffset.UtcNow;
+                activationTracker.MarkExecuted(contract.ContractId);
             }
 
             await Task.Delay(Tick, stoppingToken);

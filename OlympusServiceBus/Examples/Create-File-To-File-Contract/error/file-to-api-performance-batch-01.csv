@@ -1,0 +1,9 @@
+firstName,lastName,emailAddress,registeredBy,meetingTime,durationInMinutes
+Geralt,Kjelberg,geralt.kjelberg@dtu.dk,dte,2026-05-14T09:00:00+02:00,60
+Ciri,Viborg,ciri.viborg@dtu.dk,dte,2026-05-14T09:30:00+02:00,120
+Triss,Klein,triss.klein@dtu.dk,dte,2026-05-14T10:00:00+02:00,90
+Oliver,Johnson,oliver.johnson@dtu.dk,dte,2026-05-14T10:30:00+02:00,180
+Dimitrios,Tetepoulidis,dimitrios.tetepoulidis@dtu.dk,dte,2026-05-14T11:00:00+02:00,60
+Simon,,simon.klein@dtu.dk,dte,2026-05-14T11:30:00+02:00,120
+Yennefer,Vengerberg,yennefer.vengerberg@dtu.dk,dte,not-a-date,60
+Lambert,Klein,lambert.klein@dtu.dk,dte,2026-05-14T12:30:00+02:00,ninety

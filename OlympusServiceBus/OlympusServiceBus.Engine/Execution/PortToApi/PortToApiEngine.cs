@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using OlympusServiceBus.Engine.Evaluation;
 using OlympusServiceBus.Engine.Helpers;
 using OlympusServiceBus.RuntimeState.Models;
 using OlympusServiceBus.RuntimeState.Services;
@@ -16,13 +17,15 @@ public sealed class PortToApiEngine : IPortToApiEngine
     private readonly IContractMessageStateService _messageStateService;
     private readonly PortToApiBusinessKeyProvider _businessKeyProvider;
     private readonly PortToApiPayloadHashProvider _payloadHashProvider;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public PortToApiEngine(
         IHttpClientFactory httpClientFactory, 
         ILogger<PortToApiEngine> logger,
         IContractMessageStateService messageStateService,
         PortToApiBusinessKeyProvider businessKeyProvider,
-        PortToApiPayloadHashProvider payloadHashProvider
+        PortToApiPayloadHashProvider payloadHashProvider,
+        IEvaluationVerboseLogger evaluationVerboseLogger
     )
     {
         _httpClientFactory = httpClientFactory;
@@ -30,6 +33,7 @@ public sealed class PortToApiEngine : IPortToApiEngine
         _messageStateService = messageStateService;
         _businessKeyProvider = businessKeyProvider;
         _payloadHashProvider = payloadHashProvider;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
 
     public async Task<EngineResult> ExecuteAsync(
@@ -46,6 +50,14 @@ public sealed class PortToApiEngine : IPortToApiEngine
 
         // 1) Transform inbound -> outbound using contract mappings (Type1)
         var (outbound, mappingErrors) = PortToApiPayloadBuilder.BuildOutbound(portToApiContract, inbound);
+        _evaluationVerboseLogger.LogTransformation(
+            portToApiContract,
+            context.CorrelationId,
+            portToApiContract.Mappings,
+            inbound,
+            outbound,
+            mappingErrors,
+            sourceLabel: "inbound-request");
 
         if (mappingErrors.Count > 0)
         {
@@ -78,6 +90,12 @@ public sealed class PortToApiEngine : IPortToApiEngine
         {
             existingState.LastSeenAt = DateTimeOffset.UtcNow;
             await _messageStateService.SaveAsync(existingState, cancellationToken);
+            _evaluationVerboseLogger.LogRuntimeState(
+                portToApiContract,
+                context.CorrelationId,
+                existingState,
+                duplicateSkipped: true,
+                note: "Duplicate inbound payload skipped.");
 
             return new EngineResult(
                 Success: true,
@@ -107,6 +125,13 @@ public sealed class PortToApiEngine : IPortToApiEngine
         if (!string.IsNullOrWhiteSpace(context.CorrelationId))
             req.Headers.TryAddWithoutValidation("X-Correlation-Id", context.CorrelationId);
 
+        _evaluationVerboseLogger.LogApiSinkRequest(
+            portToApiContract,
+            context.CorrelationId,
+            sinkMethod,
+            sinkUrl,
+            outbound);
+
         using var response = await client.SendAsync(req, cancellationToken);
 
         var responseText = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -126,8 +151,7 @@ public sealed class PortToApiEngine : IPortToApiEngine
         if (response.IsSuccessStatusCode)
         {
             var now = DateTimeOffset.UtcNow;
-
-            await _messageStateService.SaveAsync(new ContractMessageStateEntity
+            var publishedState = new ContractMessageStateEntity
             {
                 ContractId = portToApiContract.ContractId,
                 ContractName = portToApiContract.Name,
@@ -136,8 +160,27 @@ public sealed class PortToApiEngine : IPortToApiEngine
                 CanonicalSnapshot = outbound.ToJsonString(),
                 FirstSeenAt = existingState?.FirstSeenAt ?? now,
                 LastSeenAt = now,
-                LastPublishedAt = now
-            }, cancellationToken);
+                LastPublishedAt = now,
+                PublishStatus = "Published",
+                PublishAttemptCount = (existingState?.PublishAttemptCount ?? 0) + 1,
+                LastPublishAttemptAt = now,
+                LastPublishError = null
+            };
+
+            await _messageStateService.SaveAsync(publishedState, cancellationToken);
+            _evaluationVerboseLogger.LogApiSinkResponse(
+                portToApiContract,
+                context.CorrelationId,
+                sinkMethod,
+                sinkUrl,
+                (int)response.StatusCode,
+                responseText,
+                outbound);
+            _evaluationVerboseLogger.LogRuntimeState(
+                portToApiContract,
+                context.CorrelationId,
+                publishedState,
+                note: "Sink publish succeeded.");
             
             return new EngineResult(
                 Success: true,
@@ -150,6 +193,42 @@ public sealed class PortToApiEngine : IPortToApiEngine
                     sinkBody
                 });
         }
+
+        var failedAt = DateTimeOffset.UtcNow;
+        var failedState = new ContractMessageStateEntity
+        {
+            ContractId = portToApiContract.ContractId,
+            ContractName = portToApiContract.Name,
+            BusinessKey = businessKey,
+            PayloadHash = payloadHash,
+            CanonicalSnapshot = outbound.ToJsonString(),
+            FirstSeenAt = existingState?.FirstSeenAt ?? failedAt,
+            LastSeenAt = failedAt,
+            LastPublishedAt = existingState?.LastPublishedAt,
+            PublishStatus = "Failed",
+            PublishAttemptCount = (existingState?.PublishAttemptCount ?? 0) + 1,
+            LastPublishAttemptAt = failedAt,
+            LastPublishError = $"Sink returned {(int)response.StatusCode} ({response.ReasonPhrase})."
+        };
+
+        await _messageStateService.SaveAsync(failedState, cancellationToken);
+        _evaluationVerboseLogger.LogApiSinkFailure(
+            portToApiContract,
+            context.CorrelationId,
+            sinkMethod,
+            sinkUrl,
+            outbound,
+            new HttpRequestException(
+                $"Sink returned {(int)response.StatusCode} ({response.ReasonPhrase}).",
+                null,
+                response.StatusCode),
+            (int)response.StatusCode,
+            responseText);
+        _evaluationVerboseLogger.LogRuntimeState(
+            portToApiContract,
+            context.CorrelationId,
+            failedState,
+            note: "Sink publish failed.");
 
         return new EngineResult(
             Success: false,

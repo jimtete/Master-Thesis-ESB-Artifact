@@ -19,6 +19,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
     private readonly IFeedbackContractRegistry _feedbackContractRegistry;
     private readonly FeedbackContractDispatcher _feedbackContractDispatcher;
     private readonly IEvaluationRecordingService _evaluationRecordingService;
+    private readonly IEvaluationVerboseLogger _evaluationVerboseLogger;
 
     public ApiToApiExecutionService(
         ApiToApiExecutor executor,
@@ -28,7 +29,8 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         ApiToApiPayloadHashProvider payloadHashProvider,
         IFeedbackContractRegistry feedbackContractRegistry,
         FeedbackContractDispatcher feedbackContractDispatcher,
-        IEvaluationRecordingService evaluationRecordingService)
+        IEvaluationRecordingService evaluationRecordingService,
+        IEvaluationVerboseLogger evaluationVerboseLogger)
     {
         _executor = executor;
         _executionStateService = executionStateService;
@@ -38,6 +40,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         _feedbackContractRegistry = feedbackContractRegistry;
         _feedbackContractDispatcher = feedbackContractDispatcher;
         _evaluationRecordingService = evaluationRecordingService;
+        _evaluationVerboseLogger = evaluationVerboseLogger;
     }
 
     public async Task ExecuteAsync(ApiToApiContract contract, string triggerType, CancellationToken cancellationToken)
@@ -45,9 +48,12 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         var activeSession = await _evaluationRecordingService.GetActiveSessionAsync(cancellationToken);
         var startedAtUtc = DateTimeOffset.UtcNow;
         var stopwatch = Stopwatch.StartNew();
+        var correlationId = _evaluationVerboseLogger.CreateCorrelationId(contract.ContractId, "api-to-api");
         var status = "Success";
         string? errorMessage = null;
         var processedCount = 0;
+
+        _evaluationVerboseLogger.LogExecutionStarted(contract, triggerType, correlationId, startedAtUtc);
 
         await _executionStateService.SaveAsync(new ContractExecutionStateEntity
         {
@@ -60,7 +66,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
         try
         {
-            var execution = await _executor.BuildExecutionAsync(contract, cancellationToken);
+            var execution = await _executor.BuildExecutionAsync(contract, correlationId, cancellationToken);
 
             if (execution is null || execution.SinkPayload is null)
             {
@@ -93,7 +99,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
             if (existingState is null)
             {
-                await _messageStateService.SaveAsync(new ContractMessageStateEntity
+                var newState = new ContractMessageStateEntity
                 {
                     ContractId = contract.ContractId,
                     ContractName = contract.Name,
@@ -107,12 +113,21 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                     LastPublishAttemptAt = null,
                     LastPublishError = null,
                     LastPublishedAt = null
-                }, cancellationToken);
+                };
+
+                await _messageStateService.SaveAsync(newState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(contract, correlationId, newState, note: "Message saved as pending.");
             }
             else if (existingState.PayloadHash == payloadHash)
             {
                 existingState.LastSeenAt = now;
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(
+                    contract,
+                    correlationId,
+                    existingState,
+                    duplicateSkipped: !string.Equals(existingState.PublishStatus, "Pending", StringComparison.OrdinalIgnoreCase),
+                    note: "Existing message observed again.");
             }
             else
             {
@@ -126,9 +141,10 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 existingState.LastPublishError = null;
 
                 await _messageStateService.SaveAsync(existingState, cancellationToken);
+                _evaluationVerboseLogger.LogRuntimeState(contract, correlationId, existingState, note: "Payload changed and message reset to pending.");
             }
 
-            var flushSummary = await FlushPendingWithSummaryAsync(contract, cancellationToken);
+            var flushSummary = await FlushPendingWithSummaryAsync(contract, correlationId, cancellationToken);
             processedCount = flushSummary.PublishedCount + flushSummary.FailedCount;
             if (flushSummary.FailedCount > 0)
             {
@@ -164,6 +180,15 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
         finally
         {
             stopwatch.Stop();
+            _evaluationVerboseLogger.LogExecutionCompleted(
+                contract,
+                triggerType,
+                correlationId,
+                startedAtUtc,
+                DateTimeOffset.UtcNow,
+                stopwatch.ElapsedMilliseconds,
+                status,
+                errorMessage);
 
             if (activeSession is not null)
             {
@@ -191,11 +216,13 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
     public async Task FlushPendingAsync(ApiToApiContract contract, CancellationToken cancellationToken)
     {
-        await FlushPendingWithSummaryAsync(contract, cancellationToken);
+        var correlationId = _evaluationVerboseLogger.CreateCorrelationId(contract.ContractId, "flush-pending");
+        await FlushPendingWithSummaryAsync(contract, correlationId, cancellationToken);
     }
 
     private async Task<FlushPendingSummary> FlushPendingWithSummaryAsync(
         ApiToApiContract contract,
+        string correlationId,
         CancellationToken cancellationToken)
     {
         var pendingMessages = await _messageStateService.GetPendingAsync(
@@ -221,10 +248,12 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
                 message.PublishAttemptCount += 1;
                 message.LastPublishAttemptAt = DateTimeOffset.UtcNow;
                 message.LastPublishError = null;
+                _evaluationVerboseLogger.LogRuntimeState(contract, correlationId, message, note: "Pending message publish attempt started.");
 
                 responsePayload = await _executor.SendPayloadAsync(
                     contract,
                     transformedPayload,
+                    correlationId,
                     cancellationToken);
 
                 var now = DateTimeOffset.UtcNow;
@@ -236,6 +265,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
                 await _messageStateService.SaveAsync(message, cancellationToken);
                 summary.PublishedCount += 1;
+                _evaluationVerboseLogger.LogRuntimeState(contract, correlationId, message, note: "Pending message published successfully.");
 
                 await DispatchFeedbackContractsAsync(
                     contract,
@@ -255,6 +285,7 @@ public class ApiToApiExecutionService : IApiToApiExecutionService
 
                 await _messageStateService.SaveAsync(message, cancellationToken);
                 summary.FailedCount += 1;
+                _evaluationVerboseLogger.LogRuntimeState(contract, correlationId, message, note: "Pending message publish failed.");
 
                 await DispatchFeedbackContractsAsync(
                     contract,

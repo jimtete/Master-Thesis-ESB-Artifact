@@ -33,6 +33,8 @@ builder.Services.AddSwaggerGen(o =>
 
 // Options + HttpClient
 builder.Services.Configure<ContractsOptions>(builder.Configuration.GetSection("Contracts"));
+builder.Services.Configure<EvaluationVerboseLoggingOptions>(
+    builder.Configuration.GetSection(EvaluationVerboseLoggingOptions.SectionName));
 
 // DI For Runtime State
 builder.Services.AddDbContext<RuntimeStateDbContext>(options =>
@@ -48,6 +50,7 @@ builder.Services.AddSingleton<WebHostRestartService>();
 builder.Services.AddSingleton<PortToApiSchemaBuilder>();
 builder.Services.AddSingleton<PortToApiInboundValidator>();
 builder.Services.AddSingleton<IEvaluationRecordingService, FileEvaluationRecordingService>();
+builder.Services.AddSingleton<IEvaluationVerboseLogger, EvaluationVerboseLogger>();
 
 builder.Services.AddSingleton<IPortToApiEndpointRegistrar, PortToApiEndpointRegistrar>();
 builder.Services.AddSingleton<IPortToFileEndpointRegistrar, PortToFileEndpointRegistrar>();

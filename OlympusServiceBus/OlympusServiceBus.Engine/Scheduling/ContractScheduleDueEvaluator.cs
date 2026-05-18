@@ -8,16 +8,17 @@ public static class ContractScheduleDueEvaluator
     public static bool IsDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        DateTimeOffset? activationStartedAtUtc = null)
     {
         ArgumentNullException.ThrowIfNull(schedule);
 
         return schedule.Mode switch
         {
             ContractScheduleMode.Manual => false,
-            ContractScheduleMode.AdHoc => IsAdHocDue(schedule, executionState, nowUtc),
-            ContractScheduleMode.Interval => IsIntervalDue(schedule, executionState, nowUtc),
-            ContractScheduleMode.Recurring => IsRecurringDue(schedule, executionState, nowUtc),
+            ContractScheduleMode.AdHoc => IsAdHocDue(schedule, executionState, nowUtc, activationStartedAtUtc),
+            ContractScheduleMode.Interval => IsIntervalDue(schedule, executionState, nowUtc, activationStartedAtUtc),
+            ContractScheduleMode.Recurring => IsRecurringDue(schedule, executionState, nowUtc, activationStartedAtUtc),
             _ => false,
         };
     }
@@ -25,7 +26,8 @@ public static class ContractScheduleDueEvaluator
     private static bool IsAdHocDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        DateTimeOffset? activationStartedAtUtc)
     {
         if (schedule.RunAtUtc is null)
         {
@@ -43,39 +45,49 @@ public static class ContractScheduleDueEvaluator
             return false;
         }
 
+        if (activationStartedAtUtc is not null &&
+            activationStartedAtUtc > schedule.RunAtUtc)
+        {
+            return false;
+        }
+
         return true;
     }
 
     private static bool IsIntervalDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        DateTimeOffset? activationStartedAtUtc)
     {
         if (schedule.Interval is null)
         {
             return false;
         }
 
-        if (executionState?.LastRunStartedAt is null)
+        var anchor = Max(executionState?.LastRunStartedAt, activationStartedAtUtc);
+
+        if (anchor is null)
         {
             return true;
         }
 
-        var nextDue = executionState.LastRunStartedAt.Value.Add(schedule.Interval.Value);
+        var nextDue = anchor.Value.Add(schedule.Interval.Value);
         return nextDue <= nowUtc;
     }
 
     private static bool IsRecurringDue(
         ResolvedContractSchedule schedule,
         ContractExecutionStateEntity? executionState,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        DateTimeOffset? activationStartedAtUtc)
     {
         if (string.IsNullOrWhiteSpace(schedule.CronExpression))
         {
             return false;
         }
 
-        var anchor = executionState?.LastRunStartedAt ?? DateTimeOffset.MinValue;
+        var anchor = Max(executionState?.LastRunStartedAt, activationStartedAtUtc) ?? DateTimeOffset.MinValue;
 
         var nextOccurrence = RecurringScheduleOccurrenceCalculator.GetNextOccurrenceUtc(
             schedule.CronExpression,
@@ -88,5 +100,16 @@ public static class ContractScheduleDueEvaluator
         }
 
         return nextOccurrence <= nowUtc;
+    }
+
+    private static DateTimeOffset? Max(DateTimeOffset? left, DateTimeOffset? right)
+    {
+        return (left, right) switch
+        {
+            (null, null) => null,
+            ({ } value, null) => value,
+            (null, { } value) => value,
+            ({ } leftValue, { } rightValue) => leftValue >= rightValue ? leftValue : rightValue
+        };
     }
 }

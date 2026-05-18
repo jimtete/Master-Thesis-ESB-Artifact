@@ -29,8 +29,11 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient(Constants.ENGINE_HTTP_CLIENT_NAME);
 builder.Services.AddHttpClient<ApiStatusFeedbackContractExecutor>();
 builder.Services.Configure<WebHostOptions>(builder.Configuration.GetSection("WebHost"));
+builder.Services.Configure<EvaluationVerboseLoggingOptions>(
+    builder.Configuration.GetSection(EvaluationVerboseLoggingOptions.SectionName));
 builder.Services.AddSingleton<PortToApiReloadClient>();
 builder.Services.AddSingleton<IEvaluationRecordingService, FileEvaluationRecordingService>();
+builder.Services.AddSingleton<IEvaluationVerboseLogger, EvaluationVerboseLogger>();
 
 // OOP pieces
 builder.Services.AddScoped<IApiToApiExecutionService, ApiToApiExecutionService>();

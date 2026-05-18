@@ -18,18 +18,23 @@ public class ApiToApiWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("ApiToApiWorker started.");
+        var activationTracker = new ContractActivationTracker();
 
         while (!stoppingToken.IsCancellationRequested)
         {
             var contracts = registry.GetContract<ApiToApiContract>();
+            activationTracker.SyncKnownContracts(contracts.Select(static contract => contract.ContractId));
 
             foreach (var contract in contracts)
             {
-                if (!contract.Enabled)
-                    continue;
-
                 try
                 {
+                    var nowUtc = DateTimeOffset.UtcNow;
+                    var activationStartedAtUtc = activationTracker.Observe(contract.ContractId, contract.Enabled, nowUtc);
+
+                    if (!contract.Enabled)
+                        continue;
+
                     using var scope = scopeFactory.CreateScope();
 
                     var executionStateService = scope.ServiceProvider.GetRequiredService<IContractExecutionStateService>();
@@ -38,17 +43,18 @@ public class ApiToApiWorker(
                     var resolvedSchedule = ContractScheduleResolver.Resolve(contract);
                     var executionState = await executionStateService.GetAsync(contract.ContractId, stoppingToken);
 
-                    var nowUtc = DateTimeOffset.UtcNow;
                     var isDue = ContractScheduleDueEvaluator.IsDue(
                         resolvedSchedule,
                         executionState,
-                        nowUtc);
+                        nowUtc,
+                        activationStartedAtUtc);
 
                     logger.LogDebug(
-                        "Contract {ContractId} schedule evaluated. Mode: {Mode}, IsDue: {IsDue}, LastRunStartedAt: {LastRunStartedAt}, LastRunCompletedAt: {LastRunCompletedAt}, LastRunStatus: {LastRunStatus}",
+                        "Contract {ContractId} schedule evaluated. Mode: {Mode}, IsDue: {IsDue}, ActivationStartedAt: {ActivationStartedAt}, LastRunStartedAt: {LastRunStartedAt}, LastRunCompletedAt: {LastRunCompletedAt}, LastRunStatus: {LastRunStatus}",
                         contract.ContractId,
                         resolvedSchedule.Mode,
                         isDue,
+                        activationStartedAtUtc,
                         executionState?.LastRunStartedAt,
                         executionState?.LastRunCompletedAt,
                         executionState?.LastRunStatus);
@@ -62,6 +68,7 @@ public class ApiToApiWorker(
                         resolvedSchedule.Mode);
 
                     await executionService.ExecuteAsync(contract, EvaluationTriggerTypes.Scheduled, stoppingToken);
+                    activationTracker.MarkExecuted(contract.ContractId);
                 }
                 catch (NotSupportedException ex)
                 {

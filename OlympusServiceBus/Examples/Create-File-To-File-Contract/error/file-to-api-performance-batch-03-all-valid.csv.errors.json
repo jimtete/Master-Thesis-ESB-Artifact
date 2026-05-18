@@ -1,0 +1,1 @@
+{"contractId":"Working-File-To-VMS-Api-Test","file":"file-to-api-performance-batch-03-all-valid.csv","TotalRows":6,"SucceededRows":5,"FailedRows":1,"Failures":[{"RowNumber":4,"Errors":["Sink returned 400","StatusCode=400"]}]}
